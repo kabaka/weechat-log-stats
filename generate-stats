@@ -71,13 +71,18 @@ def write_progress_bar(width, label, progress)
 end
 
 def correct_nick(nick)
-  nick.gsub!(/\[.+\]/, '')  unless nick.start_with? "["
-  nick.sub!(/\|.+$/, '')    unless nick.start_with? "|"
+  nick.downcase!
 
-  nick = nick.downcase.gsub(/[\[\]\\\|\^-]/, '_')
+  nick.sub!(/\[.+\]/, '') unless nick.start_with? "["
+  nick.sub!(/\|.+$/, '')  unless nick.start_with? "|"
+
+  nick.gsub!(/[\[\]\\\|\^`-]/, '_')
 
   # OH GOD WHAT THE FUCK IS THIS
-  if nick =~ /\A(awesome.+|.+shy|.*ooze)\Z/
+  # TODO: Make this go away.
+  if nick =~ /pony_?[0-9]+/ or nick[0] == "*"
+    nil
+  elsif nick =~ /\A(awesome.+|.*ooze)\Z/
     "awesomeshy"
   elsif nick =~ /\A((dj)?midge.*|tetsingbrony)/
     "midgetbrony"
@@ -85,15 +90,15 @@ def correct_nick(nick)
     "makerdusk"
   elsif nick =~ /\A(za(hq|c)o?|zee)/
     "zahqo"
-  elsif nick.start_with? "cassy_"
+  elsif nick == "cassy_"
     "cassy"
   elsif nick.start_with? "phase"
     "phase4"
-  elsif nick.start_with? "kabaka_"
+  elsif nick == "kabaka_"
     "kabaka"
   elsif nick == "u"
     "un1c0rn"
-  elsif nick.start_with? "dis"
+  elsif nick == "disillusioned"
     "dis"
   elsif nick.start_with? "artemis"
     "simplicity"
@@ -113,8 +118,8 @@ def correct_nick(nick)
     "aji"
   elsif nick =~ /([hm]ay[hm]aker|gilda).*/
     "haymaker"
-  elsif nick =~ /pony_?[0-9]+/
-    nil
+  elsif nick == "applejack" or nick == "fluttershy" or nick == "pinkie_pie" or nick == "rarity" or nick == "tom" or nick == "twilight_sparkle" or nick == "rainbow_dash"
+    "chanserv"
   else
     nick
   end
