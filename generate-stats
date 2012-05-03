@@ -1,0 +1,289 @@
+#!/usr/bin/ruby
+#
+# Copyright (C) 2012 Kyle Johnson <kyle@vacantminded.com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# Channel Statistics Analyzer for WeeChat
+#
+# To-do:
+#
+#   Tons more statistics.
+#   Batch processing
+#   RRD via gem rather than shell
+#   Sane graph colors
+#   Command-line options:
+#     Output location
+#     WeeChat home location
+#     Message threshold
+#
+# How to use it:
+#
+#   Don't. It will kick your dog and burn down your mother's house.
+#
+#   No, really, it isn't ready. Don't hold me responsible for problems.
+#
+
+require 'date'
+
+abort "Usage: #{__FILE__} network channel" if ARGV.length != 2
+
+THRESHOLD = 500
+
+network = ARGV.shift
+channel = ARGV.shift
+
+tmp_dir = "%s/" % `mktemp -d`.chomp
+
+def interrupted(tmp_dir)
+  print "\nExiting early.\n"
+  `rm -rf #{tmp_dir}`
+  exit
+end
+
+trap("INT")  { interrupted(tmp_dir) }
+trap("TERM") { interrupted(tmp_dir) }
+
+log_name = "/home/#{ENV['USER']}/.weechat/logs/irc.#{network}.#{channel}.weechatlog"
+
+abort "File #{log_name} does not exist." unless File.exists? log_name
+
+def write_progress_bar(width, label, progress)
+  width -= 10 + label.length
+
+  print "\r%s: %3d%% [%s]" % [label, progress * 100, ("#" * ((width) * progress)).ljust(width)]
+end
+
+def correct_nick(nick)
+  nick.gsub!(/\[.+\]/, '')  unless nick.start_with? "["
+  nick.sub!(/\|.+$/, '')    unless nick.start_with? "|"
+
+  nick = nick.downcase.gsub(/[\[\]\\\|\^-]/, '_')
+
+  # OH GOD WHAT THE FUCK IS THIS
+  if nick =~ /\A(awesome.+|.+shy|.*ooze)\Z/
+    "awesomeshy"
+  elsif nick =~ /\A((dj)?midge.*|tetsingbrony)/
+    "midgetbrony"
+  elsif nick =~ /(.*dusky?\Z|callidus)/
+    "makerdusk"
+  elsif nick =~ /\A(za(hq|c)o?|zee)/
+    "zahqo"
+  elsif nick.start_with? "cassy_"
+    "cassy"
+  elsif nick.start_with? "phase"
+    "phase4"
+  elsif nick.start_with? "kabaka_"
+    "kabaka"
+  elsif nick == "u"
+    "un1c0rn"
+  elsif nick.start_with? "dis"
+    "dis"
+  elsif nick.start_with? "artemis"
+    "simplicity"
+  elsif nick.start_with? "iri" or nick.start_with? "guro"
+    "skyreaper"
+  elsif nick == "bioweapon"
+    "arcterius"
+  elsif nick == "becky"
+    "becca"
+  elsif nick == "darkfyre"
+    "litefyre"
+  elsif nick.start_with? "renph" or nick.start_with? "mixmas" or nick.start_with? "ren_"
+    "ren"
+  elsif nick == "sleepypony"
+    "dj_sleepypony"
+  elsif nick == "zeppony" or nick == "alex" or nick.start_with? "aji"
+    "aji"
+  elsif nick =~ /([hm]ay[hm]aker|gilda).*/
+    "haymaker"
+  elsif nick =~ /pony_?[0-9]+/
+    nil
+  else
+    nick
+  end
+end
+
+current_day, start_time, defs = "", "", ""
+nick_stats, nick_totals = {}, {}
+
+now     = Time.now.to_i
+size    = File.size(log_name)
+width   = `tput cols`.chomp.to_i
+
+File.open(log_name, "r") do |file|
+  while line = file.gets
+    line = line.force_encoding('ASCII-8BIT').chomp
+
+    if line =~ /\A(\d{4})-(\d{2})-(\d{2})\s[\d:]{8}\t[@+&~!%]?([^\t]+)\t([^ ]+)( |\Z)/
+      year, month, day = $1, $2, $3
+      nick, first_word = $4, $5
+
+      date = "%s%s%s" % [year, month, day]
+
+      next if nick =~ /\A<?-->?\Z/ or nick.empty?
+
+      nick = first_word if nick == " *"
+      
+      next if (nick = correct_nick(nick)) == nil
+
+      if current_day != date
+
+        # First day.
+        if current_day == "" and date != ""
+          timestamp = Time.mktime(year, month, day).to_i
+          start_time = timestamp - 1
+
+          current_day = date
+        end
+
+        if current_day != nil and current_day != ""
+          timestamp = Time.mktime(year, month, day).to_i
+
+          if now < timestamp
+            puts
+            warn "Log line apparently from the future (#{current_day}): #{line}" 
+
+            next
+          end
+
+          write_progress_bar width, "Parsing", file.pos.to_f / size.to_f
+
+          nick_stats.each_pair do |my_nick, my_count|
+            `rrdtool update '#{tmp_dir}/#{my_nick}.rrd' #{timestamp}:#{my_count}`
+          end
+
+          nick_stats = {}
+        end
+
+        current_day = date
+      end
+
+      unless File.exists? "#{tmp_dir}/#{nick}.rrd"
+        `rrdtool create '#{tmp_dir}/#{nick}.rrd' --step 86400 \
+        --start #{start_time} \
+        DS:messages:GAUGE:86400:0:10000 \
+        RRA:AVERAGE:0.5:1:365 \
+        RRA:MAX:0.5:1:365`
+      end
+
+      nick_totals[nick] ||= 0
+      nick_totals[nick] += 1
+
+      nick_stats[nick] ||= 0
+      nick_stats[nick] += 1
+    end
+  end
+end
+
+write_progress_bar width, "Parsing", 1
+puts
+
+nick_list = nick_totals.keys
+nick_list.delete_if {|nick| nick_totals[nick] < THRESHOLD}
+nick_list.sort!
+
+base_dir = "#{File.dirname(__FILE__)}/output/"
+Dir.mkdir base_dir unless Dir.exists? base_dir
+
+base_dir << "%s/" % network
+Dir.mkdir base_dir unless Dir.exists? base_dir
+
+base_dir << "%s/" % channel
+
+unless Dir.exists? base_dir
+  Dir.mkdir base_dir
+else
+  `rm #{base_dir}*`
+end
+
+html = File.open("#{base_dir}/index.html", "w")
+
+html << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">
+<html><head><title>#{channel} on #{network}</title>
+<style type=\"text/css\">
+body {
+  background-color: #999;
+}
+#content {
+  background-color: #FFF;
+  width: 950px;
+  padding: 10px;
+  margin: 10px auto;
+  box-shadow: 10px 10px 10px #777;
+  border-radius: 10px;
+  text-align: center;
+}
+img {
+  display: block;
+  margin: 10px auto;
+}
+table {
+  width: 400px;
+  border: 0;
+  margin: 10px auto;
+}
+th {
+  background-color: #FFF;
+}
+tr {
+  background-color: #DEDEDE;
+}
+tr a {
+  text-decoration: none;
+}
+</style></head><body><div id=\"content\"><h1>User Activity in #{channel} on #{network}</h1>
+<p><em>Nicks are changed to lower case, some characters are replaced with underscores, and
+some manual nick change correction is performed. Only users that have spoken at least
+#{THRESHOLD} lines are shown.</em></p>
+<table><tr><th>Nick</th><th>Total Lines</th></tr>"
+
+nick_list.each do |nick|
+  html << '<tr><td><a href="#%s">%s</a></td><td>%d</td></tr>' % [nick, nick, nick_totals[nick]]
+end
+
+html << '</table><hr>'
+
+write_progress_bar width, "Writing Output", 0
+
+nick_list.each_with_index do |nick, index|
+  color = "%06x" % (rand * 0xffffff) # TODO: Only pick visible colors.
+
+  html << '<h2><a name="%s" />%s</h2><p><img src="%s.png" alt="%s on %s" /></p>' % [nick, nick, nick, nick, channel]
+
+  `rrdtool graph #{base_dir}/#{nick}.png -a PNG \
+  -s #{start_time} -e N \
+  'DEF:#{nick}=#{tmp_dir}/#{nick}.rrd:messages:AVERAGE' \
+  'AREA:#{nick}##{color}:#{nick}:STACK' \
+  --title="#{channel} on #{network}" --vertical-label="Messages Per Day" \
+  -w 800 -h 300`
+
+  write_progress_bar width, "Writing Output", index.to_f / nick_list.length.to_f
+end
+
+html << "<p>Generated by Kabaka on %s</p></div></body></html>" % now
+
+html.close
+
+`rm -rf #{tmp_dir}`
+
+write_progress_bar width, "Writing Output", 1
+
+puts
+
