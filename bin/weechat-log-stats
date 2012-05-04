@@ -24,7 +24,8 @@
 abort "Requires Ruby 1.9" unless RUBY_VERSION.start_with? "1.9"
 
 require 'optparse'
-require 'weechat-log-stats'
+#require 'weechat-log-stats'
+load 'lib/weechat-log-stats.rb'
 
 files, options = [], {:output_dir => "./output/", :message_threshold => 500, :nicks_file => File.expand_path("~/.weechat-log-stats.nicks")}
 
@@ -59,29 +60,31 @@ abort "No input files specified." if ARGV.empty?
 trap("INT")  { IRCStats.clean; exit }
 trap("TERM") { IRCStats.clean; exit }
 
-$nicks_file = {}
+NICK_CHECKS = []
+Check = Struct.new(:nick, :str, :glob)
 
 if File.exists? options[:nicks_file]
   File.open(options[:nicks_file], "r") do |file|
     while line = file.gets do
-      line = line.force_encoding("ASCII-8BIT").chomp
+      line = line.force_encoding("ASCII-8BIT").chomp.downcase
+
       next if line.empty? or line[0] == '#'
 
-      nick, checks = line.split(/=/, 2)
+      nick, checks = line.split(/\s*=\s*/, 2)
 
-      checks = checks.split(/\s*/)
-
-      $nicks_file[nick] = checks
+      checks.split(/\s+/).each do |check|
+          NICK_CHECKS << Check.new(nick, check, check.include?('*'))
+      end
     end
   end
 end
 
 def check_nick_list(nick)
-  $nicks_file.each_pair do |fixed, checks|
-    checks.each do |check|
-      if nick.wildcard_match(check)
-        fixed
-      end
+  NICK_CHECKS.each do |check|
+    if check.glob
+      return check.nick if File.fnmatch(nick, check.str)
+    else
+      return check.nick if nick == check.str
     end
   end
 

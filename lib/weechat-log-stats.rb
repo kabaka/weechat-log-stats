@@ -54,7 +54,7 @@ module IRCStats
 
     return if nick =~ /\A<?-->?\Z/
     nick = correct_nick(nick).chomp
-    return if nick == nil or nick.empty? or nick[0] == "*"
+    return if nick == nil or nick.empty? or nick[0] == '*' or nick[1] == '*'
     ts = Time.mktime(year, month, day).to_i
 
     unless date == @current_date
@@ -106,8 +106,8 @@ module IRCStats
   def self.correct_nick(nick)
     nick.downcase!
 
-    nick.sub!(/\[.+\]/, '') unless nick.start_with? "["
-    nick.sub!(/\|.+$/, '')  unless nick.start_with? "|"
+    nick.sub!(/\[.+\]/, '') unless nick[0] == '['
+    nick.sub!(/\|.+$/, '')  unless nick[0] == '|'
 
     nick.gsub!(/[\[\]\\\|\^`-]/, '_')
 
@@ -206,8 +206,3 @@ some manual nick change correction is performed. Only users that have spoken at 
 
 end # module IRCStats
 
-class String
-  def wildcard_match(s)
-    File.fnmatch(s, self)
-  end
-end
