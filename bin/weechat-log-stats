@@ -60,6 +60,8 @@ abort "No input files specified." if ARGV.empty?
 trap("INT")  { IRCStats.clean; exit! }
 trap("TERM") { IRCStats.clean; exit! }
 
+at_exit { IRCStats.clean }
+
 NICK_CHECKS = []
 Check = Struct.new(:nick, :str, :glob)
 
