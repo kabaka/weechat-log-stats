@@ -126,6 +126,13 @@ module IRCStats
 
 
   def self.write_html(output_dir, message_threshold, network, channel)
+    @nick_totals.delete_if {|n, t| t < message_threshold}
+
+    if @nick_totals.empty?
+      puts "No stats to write for %s on %s" % [channel, network]
+      return
+    end
+
     write_progress_bar "Writing Output", 0
 
     my_output_dir = output_dir.clone
@@ -142,7 +149,6 @@ module IRCStats
       `rm #{my_output_dir}*`
     end
 
-    @nick_totals.delete_if {|n, t| t < message_threshold}
     nick_list = @nick_totals.keys.sort
 
     html = File.open("#{my_output_dir}/index.html", "w")
