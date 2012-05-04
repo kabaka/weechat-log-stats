@@ -43,7 +43,7 @@ OptionParser.new do |opts|
     options[:output_dir] = d
   end
 
-  opts.on("-t", "--message-threshold N", Integer, "Minimum message count") do |i|
+  opts.on("-t", "--message-threshold N", Integer, "Minimum message count for inclusion in output") do |i|
     options[:message_threshold] = i
   end
 
@@ -69,7 +69,7 @@ if File.exists? options[:nicks_file]
 
       nick, checks = line.split(/=/, 2)
 
-      checks = checks.split
+      checks = checks.split(/\s*/)
 
       $nicks_file[nick] = checks
     end
@@ -80,7 +80,7 @@ def check_nick_list(nick)
   $nicks_file.each_pair do |fixed, checks|
     checks.each do |check|
       if nick.wildcard_match(check)
-        return fixed.empty? ? nil : fixed
+        fixed
       end
     end
   end
