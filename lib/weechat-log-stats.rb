@@ -53,8 +53,8 @@ module IRCStats
     date = "%s%s%s" % [year, month, day]
 
     return if nick =~ /\A<?-->?\Z/
-    nick = correct_nick(nick).chomp
-    return if nick == nil or nick.empty? or nick[0] == '*' or nick[1] == '*'
+    nick = correct_nick(nick)
+    return if nick == nil or nick.empty? or nick[0] == '*'
     ts = Time.mktime(year, month, day).to_i
 
     unless date == @current_date
@@ -111,7 +111,17 @@ module IRCStats
 
     nick.gsub!(/[\[\]\\\|\^`-]/, '_')
 
-    check_nick_list nick
+    return nil if nick.empty? or nick[0] == '*' or nick[1] == '*'
+
+    NICK_CHECKS.each do |check|
+      if check.glob
+        return check.nick if File.fnmatch(nick, check.str)
+      else
+        return check.nick if nick == check.str
+      end
+    end
+
+    nick
   end
 
 
@@ -202,6 +212,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     html.close
 
     write_progress_bar "Writing Output", 1
+    puts
   end
 
 end # module IRCStats
