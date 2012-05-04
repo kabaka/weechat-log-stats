@@ -205,11 +205,13 @@ some manual nick change correction is performed. Only users that have spoken at 
     html << '</table><hr>'
     html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p><hr>' % [URI.encode(@channel), @channel, @network]
 
-    `rrdtool graph '#{my_output_dir}/#{@channel}.png' -a PNG \
-    -s #{@start_time} -e N -g \
-    #{@defs.values.join(" ")} #{@areas.values.join(" ")} \
-    --title='#{@channel} on #{@network}' --vertical-label="Messages Per Day" \
-    -w 800 -h 300`
+    temp = "%s/%s" % [@tmp_dir, "temp"]
+
+    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e N -g #{@defs.values.join(" ")} #{@areas.values.join(" ")} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -w 800 -h 300")}
+
+    `cat #{temp} | rrdtool -`
+
+    File.delete temp
  
     nick_list.each_with_index do |nick, index|
       html << '<h2><a name="%s" />%s</h2><p><img src="%s.png" alt="%s on %s" /></p>' % [nick, nick, nick, nick, @channel]
