@@ -28,7 +28,7 @@ module IRCStats
   def self.run(filename, options)
     @nick_stats, @nick_totals, @now = {}, {}, Time.now.to_i
     @current_date, @start_time = "", 0
-    @defs, @areas = {}, {}
+    @defs, @areas, @print = {}, {}, {}
     @tmp_dir = `mktemp -d`.chomp
 
     @network, @channel = File.basename(filename).split(/\./)[1..2]
@@ -53,7 +53,8 @@ module IRCStats
     nick, first_word = $4, $5
     date = "%s%s%s" % [year, month, day]
 
-    return if nick =~ /\A<?-->?\Z/
+    return if nick.include? ' '
+    return if nick =~ /\A<?-->?|=!=\Z/
     nick = correct_nick(nick)
     return if nick == nil or nick.empty? or nick[0] == '*'
     ts = Time.mktime(year, month, day).to_i
@@ -83,8 +84,8 @@ module IRCStats
        color = "%06x" % (rand * 0xffffff) # TODO: Only pick visible colors.
 
        @defs[nick]  = "'DEF:#{nick}=#{@tmp_dir}/#{nick}.rrd:messages:AVERAGE'"
-       @areas[nick] = "'AREA:#{nick}##{color}:#{nick.ljust(20)}:STACK' \
-                       'GPRINT:#{nick}:AVERAGE:%4.0lf' \
+       @areas[nick] = "'AREA:#{nick}##{color}:#{nick.ljust(20)}:STACK'"
+       @print[nick] = "'GPRINT:#{nick}:AVERAGE:%4.0lf' \
                        'GPRINT:#{nick}:MIN:%8.0lf' \
                        'GPRINT:#{nick}:MAX:%8.0lf' \
                        'GPRINT:#{nick}:LAST:%8.0lf\\c' "
@@ -116,6 +117,7 @@ module IRCStats
     nick.downcase!
 
     nick.sub!(/\[.+\]/, '') unless nick[0] == '['
+    nick.sub!(/\{.+\}/, '') unless nick[0] == '{'
     nick.sub!(/\|.+$/, '')  unless nick[0] == '|'
 
     nick.gsub!(/[\[\]\\\|\^`-]/, '_')
@@ -134,29 +136,8 @@ module IRCStats
   end
 
 
+  # TODO: Rewrite this whole thing. It is held together with duct take and bad code.
   def self.write_html(output_dir, message_threshold)
-
-    cdef ="'CDEF:total="
-
-    @nick_totals.each_key.each_with_index do |nick, index|
-      cdef << "%s," % nick
-      cdef << "+," unless index.zero?
-
-      if @nick_totals[nick].zero?
-        @defs.delete nick
-        @areas.delete nick
-        @nick_totals.delete nick
-      end
-    end
-
-    cdef.chomp! ','
-    cdef << "' 'COMMENT:  Total Messages      ' \
-             'TEXTALIGN:left' \
-             'GPRINT:total:AVERAGE:%4.0lf' \
-             'GPRINT:total:MIN:%8.0lf' \
-             'GPRINT:total:MAX:%8.0lf' \
-             'GPRINT:total:LAST:%8.0lf\\c' "
-
     @nick_totals.delete_if {|n, t| t < message_threshold}
 
     write_progress_bar "Writing Output", 0
@@ -169,11 +150,11 @@ module IRCStats
 
     my_output_dir << "%s/" % @channel
 
-    unless Dir.exists? my_output_dir
-      Dir.mkdir my_output_dir
-    else
-      `rm #{my_output_dir}*`
+    if Dir.exists? my_output_dir
+      `rm -r '#{my_output_dir}'`
     end
+
+    Dir.mkdir my_output_dir
 
     nick_list = @nick_totals.keys.sort
 
@@ -222,24 +203,21 @@ some manual nick change correction is performed. Only users that have spoken at 
     end
 
     html << '</table><hr>'
-
-    write_progress_bar "Writing Output", 0
-
     html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p><hr>' % [URI.encode(@channel), @channel, @network]
 
-    `rrdtool graph #{my_output_dir}/#{@channel}.png -a PNG \
+    `rrdtool graph '#{my_output_dir}/#{@channel}.png' -a PNG \
     -s #{@start_time} -e N -g \
-    #{@defs.values.join(" ")} #{@areas.values.join(" ")} #{cdef} \
-    --title="#{@channel} on #{@network}" --vertical-label="Messages Per Day" \
+    #{@defs.values.join(" ")} #{@areas.values.join(" ")} \
+    --title='#{@channel} on #{@network}' --vertical-label="Messages Per Day" \
     -w 800 -h 300`
  
     nick_list.each_with_index do |nick, index|
       html << '<h2><a name="%s" />%s</h2><p><img src="%s.png" alt="%s on %s" /></p>' % [nick, nick, nick, nick, @channel]
 
-      `rrdtool graph #{my_output_dir}/#{nick}.png -a PNG \
+      `rrdtool graph '#{my_output_dir}/#{nick}.png' -a PNG \
       -s #{@start_time} -e N #{@defs[nick]} \
       'COMMENT:                            Average   Minimum   Maximum    Current\\c' \
-      #{@areas[nick]} \
+      #{@areas[nick]} #{@print[nick]} \
       --title="#{@channel} on #{@network}" --vertical-label="Messages Per Day" \
       -w 800 -h 300`
 
