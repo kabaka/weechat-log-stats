@@ -28,8 +28,7 @@ module IRCStats
   def self.run(filename, options)
     @nick_stats, @nick_totals, @now = {}, {}, Time.now.to_i
     @current_date, @start_time = "", 0
-    @channel_total = 0 # For the main channel graph
-
+    @defs, @areas = {}, {}
     @tmp_dir = `mktemp -d`.chomp
 
     @network, @channel = File.basename(filename).split(/\./)[1..2]
@@ -60,29 +59,17 @@ module IRCStats
     ts = Time.mktime(year, month, day).to_i
 
     unless date == @current_date
-      if @current_date.empty? and not date.empty?
-        @start_time = ts - 1
-
-        `rrdtool create '#{@tmp_dir}/#{@channel}.rrd' --step 86400 \
-         --start #{@start_time} \
-         DS:messages:GAUGE:86400:0:10000 \
-         RRA:AVERAGE:0.5:1:365 \
-         RRA:MAX:0.5:1:365`
-      end
-
+      @start_time   = ts - 1 if @current_date.empty? and not date.empty?
       @current_date = date
 
       if @current_date != nil and not @current_date.empty?
-
         write_progress_bar "Parsing", file.pos.to_f / size.to_f
 
         @nick_stats.each_pair do |my_nick, my_count|
           `rrdtool update '#{@tmp_dir}/#{my_nick}.rrd' #{ts}:#{my_count}`
         end
-          
-        `rrdtool update '#{@tmp_dir}/#{@channel}.rrd' #{ts}:#{@channel_total}`
-
-        @channel_total, @nick_stats = 0, {}
+        
+        @nick_stats = {}
       end
     end
 
@@ -92,6 +79,15 @@ module IRCStats
        DS:messages:GAUGE:86400:0:10000 \
        RRA:AVERAGE:0.5:1:365 \
        RRA:MAX:0.5:1:365`
+
+       color = "%06x" % (rand * 0xffffff) # TODO: Only pick visible colors.
+
+       @defs[nick]  = "'DEF:#{nick}=#{@tmp_dir}/#{nick}.rrd:messages:AVERAGE'"
+       @areas[nick] = "'AREA:#{nick}##{color}:#{nick.ljust(20)}:STACK' \
+                       'GPRINT:#{nick}:AVERAGE:%4.0lf' \
+                       'GPRINT:#{nick}:MIN:%8.0lf' \
+                       'GPRINT:#{nick}:MAX:%8.0lf' \
+                       'GPRINT:#{nick}:LAST:%8.0lf\\c' "
     end
 
     @nick_stats[nick] ||= 0
@@ -99,8 +95,6 @@ module IRCStats
 
     @nick_totals[nick] ||= 0
     @nick_totals[nick]  += 1
-
-    @channel_total += 1
   end
 
   def self.read_file(filename)
@@ -113,8 +107,6 @@ module IRCStats
         parse_line file, size, line.force_encoding('ASCII-8BIT').chomp
       end
     end
-    
-    @nick_stats = nil
 
     write_progress_bar "Parsing", 1
     puts
@@ -143,12 +135,29 @@ module IRCStats
 
 
   def self.write_html(output_dir, message_threshold)
-    @nick_totals.delete_if {|n, t| t < message_threshold}
 
-    if @nick_totals.empty?
-      puts "No stats to write for %s on %s" % [@channel, @network]
-      return
+    cdef ="'CDEF:total="
+
+    @nick_totals.each_key.each_with_index do |nick, index|
+      cdef << "%s," % nick
+      cdef << "+," unless index.zero?
+
+      if @nick_totals[nick].zero?
+        @defs.delete nick
+        @areas.delete nick
+        @nick_totals.delete nick
+      end
     end
+
+    cdef.chomp! ','
+    cdef << "' 'COMMENT:  Total Messages      ' \
+             'TEXTALIGN:left' \
+             'GPRINT:total:AVERAGE:%4.0lf' \
+             'GPRINT:total:MIN:%8.0lf' \
+             'GPRINT:total:MAX:%8.0lf' \
+             'GPRINT:total:LAST:%8.0lf\\c' "
+
+    @nick_totals.delete_if {|n, t| t < message_threshold}
 
     write_progress_bar "Writing Output", 0
 
@@ -219,21 +228,18 @@ some manual nick change correction is performed. Only users that have spoken at 
     html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p>' % [URI.encode(@channel), @channel, @network]
 
     `rrdtool graph #{my_output_dir}/#{@channel}.png -a PNG \
-    -s #{@start_time} -e N \
-    'DEF:total=#{@tmp_dir}/#{@channel}.rrd:messages:AVERAGE' \
-    'AREA:total#00FF00:#{@channel}:STACK' \
+    -s #{@start_time} -e N -g \
+    #{@defs.values.join(" ")} #{@areas.values.join(" ")} #{cdef} \
     --title="#{@channel} on #{@network}" --vertical-label="Messages Per Day" \
     -w 800 -h 300`
  
     nick_list.each_with_index do |nick, index|
-      color = "%06x" % (rand * 0xffffff) # TODO: Only pick visible colors.
-
       html << '<h2><a name="%s" />%s</h2><p><img src="%s.png" alt="%s on %s" /></p>' % [nick, nick, nick, nick, @channel]
 
       `rrdtool graph #{my_output_dir}/#{nick}.png -a PNG \
-      -s #{@start_time} -e N \
-      'DEF:#{nick}=#{@tmp_dir}/#{nick}.rrd:messages:AVERAGE' \
-      'AREA:#{nick}##{color}:#{nick}:STACK' \
+      -s #{@start_time} -e N #{@defs[nick]} \
+      'COMMENT:                            Average   Minimum   Maximum    Current\\c' \
+      #{@areas[nick]} \
       --title="#{@channel} on #{@network}" --vertical-label="Messages Per Day" \
       -w 800 -h 300`
 
