@@ -225,7 +225,7 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     write_progress_bar "Writing Output", 0
 
-    html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p>' % [URI.encode(@channel), @channel, @network]
+    html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p><hr>' % [URI.encode(@channel), @channel, @network]
 
     `rrdtool graph #{my_output_dir}/#{@channel}.png -a PNG \
     -s #{@start_time} -e N -g \
