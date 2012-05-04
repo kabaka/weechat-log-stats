@@ -120,7 +120,7 @@ module IRCStats
     nick.sub!(/\{.+\}/, '') unless nick[0] == '{'
     nick.sub!(/\|.+$/, '')  unless nick[0] == '|'
 
-    nick.gsub!(/[\[\]\\\|\^`-]/, '_')
+    nick.gsub!(/[\[\]\\\|\^`\{\}-]/, '_')
 
     return nil if nick.empty? or nick[0] == '*' or nick[1] == '*'
 
