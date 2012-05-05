@@ -53,10 +53,12 @@ module IRCStats
     nick, first_word = $4, $5
     date = "%s%s%s" % [year, month, day]
 
-    return if nick.include? ' '
-    return if nick =~ /\A<?-->?|=!=\Z/
+    return if nick.include? ' ' or nick =~ /\A<?-->?|=!=\Z/
+
     nick = correct_nick(nick)
-    return if nick == nil or nick.empty? or nick[0] == '*'
+
+    return if nick == nil or nick.empty? or nick.include? '*'
+
     ts = Time.mktime(year, month, day).to_i
 
     unless date == @current_date
@@ -126,7 +128,7 @@ module IRCStats
 
     NICK_CHECKS.each do |check|
       if check.glob
-        return check.nick if File.fnmatch(nick, check.str)
+        return check.nick if File.fnmatch(check.str, nick)
       else
         return check.nick if nick == check.str
       end
