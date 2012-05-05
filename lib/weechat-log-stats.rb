@@ -22,14 +22,16 @@
 
 require 'date'
 require 'uri'
+require 'digest'
 
 module IRCStats
 
   def self.run(filename, options)
-    @nick_stats, @nick_totals, @now = {}, {}, Time.now.to_i
+    @nick_stats, @now = {}, Time.now.to_i
     @current_date, @start_time = "", 0
-    @defs, @areas, @print = {}, {}, {}
     @tmp_dir = `mktemp -d`.chomp
+
+    @stats = {}
 
     @network, @channel = File.basename(filename).split(/\./)[1..2]
 
@@ -45,13 +47,15 @@ module IRCStats
   end
 
   def self.parse_line(file, size, line)
-    unless line =~ /\A(\d{4})-(\d{2})-(\d{2})\s[\d:]{8}\t[@+&~!%]?([^\t]+)\t([^ ]+)( |\Z)/
+    unless line =~ /\A(\d{4})-(\d{2})-(\d{2})\s[\d:]{8}\t[@+&~!%]?([^\t]+)\t(.+)\Z/
       return
     end
 
     year, month, day = $1, $2, $3
-    nick, first_word = $4, $5
+    nick, text = $4, $5
     date = "%s%s%s" % [year, month, day]
+
+    nick = text.split.first if nick == " *"
 
     return if nick.include? ' ' or nick =~ /\A<?-->?|=!=\Z/
 
@@ -83,21 +87,13 @@ module IRCStats
        RRA:AVERAGE:0.5:1:365 \
        RRA:MAX:0.5:1:365`
 
-       color = "%06x" % (rand * 0xffffff) # TODO: Only pick visible colors.
-
-       @defs[nick]  = "'DEF:#{nick}=#{@tmp_dir}/#{nick}.rrd:messages:AVERAGE'"
-       @areas[nick] = "'AREA:#{nick}##{color}:#{nick.ljust(20)}:STACK'"
-       @print[nick] = "'GPRINT:#{nick}:AVERAGE:%4.0lf' \
-                       'GPRINT:#{nick}:MIN:%8.0lf' \
-                       'GPRINT:#{nick}:MAX:%8.0lf' \
-                       'GPRINT:#{nick}:LAST:%8.0lf\\c' "
+       @stats[nick] = IRCUser.new(nick, @tmp_dir)
     end
 
     @nick_stats[nick] ||= 0
     @nick_stats[nick]  += 1
 
-    @nick_totals[nick] ||= 0
-    @nick_totals[nick]  += 1
+    @stats[nick].add_line(text)
   end
 
   def self.read_file(filename)
@@ -140,7 +136,7 @@ module IRCStats
 
   # TODO: Rewrite this whole thing. It is held together with duct take and bad code.
   def self.write_html(output_dir, message_threshold)
-    @nick_totals.delete_if {|n, t| t < message_threshold}
+    @stats.delete_if {|n, u| u.line_count < message_threshold}
 
     write_progress_bar "Writing Output", 0
 
@@ -158,7 +154,7 @@ module IRCStats
 
     Dir.mkdir my_output_dir
 
-    nick_list = @nick_totals.keys.sort
+    nick_list = @stats.keys.sort
 
     html = File.open("#{my_output_dir}/index.html", "w")
     html << " <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">
@@ -181,7 +177,7 @@ img {
   margin: 10px auto;
 }
 table {
-  width: 400px;
+  width: 825px;
   border: 0;
   margin: 10px auto;
 }
@@ -191,37 +187,61 @@ th {
 tr {
   background-color: #DEDEDE;
 }
+tr:hover {
+  background-color: #CCC;
+}
 tr a {
   text-decoration: none;
+}
+td {
+  width: 200px;
+}
+td.color {
+  width: 25px;
 }
 </style></head><body><div id=\"content\"><h1>User Activity in #{@channel} on #{@network}</h1>
 <p><em>Nicks are changed to lower case, some characters are replaced with underscores, and
 some manual nick change correction is performed. Only users that have spoken at least
 #{message_threshold} lines are shown.</em></p>
-<table><tr><th>Nick</th><th>Total Lines</th></tr>"
+<table><tr><th></th><th>Nick</th><th>Total Lines</th><th>Average Line Length</th><th>Words Per Line</th></tr>"
+
+    areas, defs, = "", ""
 
     nick_list.each do |nick|
-      html << '<tr><td><a href="#%s">%s</a></td><td>%d</td></tr>' % [nick, nick, @nick_totals[nick]]
+      html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
+      html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
+      html << '<td>%d</td><td>%d</td>' % [@stats[nick].line_count, @stats[nick].average_line_length]
+      html << '<td>%d</td></tr>' % @stats[nick].words_per_line
+
+      areas << "%s " % @stats[nick].rrd_area
+      defs  << "%s " % @stats[nick].rrd_def
     end
 
     html << '</table><hr>'
     html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p><hr>' % [URI.encode(@channel), @channel, @network]
 
+
+    # rrdtool shits a brick (rather than a graph) when we feed it too much, 
+    # so write it to a file and pipe it in
+    
     temp = "%s/%s" % [@tmp_dir, "temp"]
 
-    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e N -g #{@defs.values.join(" ")} #{@areas.values.join(" ")} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -w 800 -h 300")}
+    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e N -g #{defs} #{areas} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -w 800 -h 300")}
 
     `cat #{temp} | rrdtool -`
 
     File.delete temp
  
     nick_list.each_with_index do |nick, index|
-      html << '<h2><a name="%s" />%s</h2><p><img src="%s.png" alt="%s on %s" /></p>' % [nick, nick, nick, nick, @channel]
+      html << '<h2><a name="%s"></a>%s</h2><p>' % [nick, nick]
+      html << '<img src="%s.png" alt="%s on %s" /></p>' % [nick, nick, @channel]
+
+      current = @stats[nick]
 
       `rrdtool graph '#{my_output_dir}/#{nick}.png' -a PNG \
-      -s #{@start_time} -e N #{@defs[nick]} \
+      -s #{@start_time} -e N #{current.rrd_def} \
       'COMMENT:                            Average   Minimum   Maximum    Current\\c' \
-      #{@areas[nick]} #{@print[nick]} \
+      #{current.rrd_area} #{current.rrd_print} \
       --title="#{@channel} on #{@network}" --vertical-label="Messages Per Day" \
       -w 800 -h 300`
 
@@ -234,6 +254,44 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     write_progress_bar "Writing Output", 1
     puts
+  end
+
+  class IRCUser
+    attr_reader   :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
+
+    def initialize(nick, tmp_dir)
+      @nick = nick
+
+      @line_count, @line_length = 0, 0
+      @word_count = 0
+      @rrd_def, @rrd_area, @rrd_print = rrd_def, rrd_area, rrd_print
+
+      @color = Digest::MD5.hexdigest(nick)[0..5]
+      #@color = "%06x" % rand(0xFFFFFF) # TODO: Use a hash of the nick.
+
+      @rrd_def   = "'DEF:#{nick}=#{tmp_dir}/#{nick}.rrd:messages:AVERAGE'"
+      @rrd_area  = "'AREA:#{nick}##{@color}:#{nick.ljust(20)}:STACK'"
+      @rrd_print = "'GPRINT:#{nick}:AVERAGE:%4.0lf' \
+                    'GPRINT:#{nick}:MIN:%8.0lf' \
+                    'GPRINT:#{nick}:MAX:%8.0lf' \
+                    'GPRINT:#{nick}:LAST:%8.0lf\\c' "
+    end
+
+    def add_line(line)
+      @line_count  += 1
+      @line_length += line.length
+
+      @word_count +=  line.split.length
+    end
+
+    def average_line_length
+      @line_length / @line_count
+    end
+
+    def words_per_line
+      @word_count / @line_count
+    end
+
   end
 
 end # module IRCStats
