@@ -334,6 +334,9 @@ td.color {
 some manual nick change correction is performed. Only users that have spoken at least
 #{mt} lines are shown. #{num_deleted} users did not make the cut.</p>"
     
+
+    # Hourly graph
+
     html << '<hr><h2>Activity by Hour</h2><p class="center"><em>Time Zone: UTC%s</em></p>' % Time.now.strftime("%z")
 
     hourly_start = Time.mktime(2000, 1, 1, 0, 0, 0).to_i
@@ -361,6 +364,9 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     html << '<p><img src="hourly-%s.png" alt="Usage by hour"></p>' % URI.encode(@channel)
 
+
+    # General stats table 1
+
     html << "<hr><h2>General Statistics</h2>
 <table><tr><th></th><th>Nick</th><th>Total Lines</th><th>Average Line Length</th><th>Words Per Line</th></tr>"
 
@@ -376,7 +382,12 @@ some manual nick change correction is performed. Only users that have spoken at 
       defs  << "%s " % @stats[nick].rrd_def
     end
 
-    html << '</table><table><tr><th></th><th>Nick</th><th>Joins</th><th>Quits</th><th>Parts</th><th>Kicked</th><th>Kicker</th><th>Modes</th></tr>'
+    html << '</table>'
+
+
+    # General stats table 2
+    
+    html << '<table><tr><th></th><th>Nick</th><th>Joins</th><th>Quits</th><th>Parts</th><th>Kicked</th><th>Kicker</th><th>Modes</th></tr>'
 
     nick_list.each do |nick|
       html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
@@ -385,7 +396,12 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<td>%d</td><td>%d</td><td>%s</td></tr>' % [@stats[nick].kicked, @stats[nick].kicker, @stats[nick].modes]
     end
 
-    html << '</table><table><tr><th></th><th>Nick</th><th>Emoticons</th><th>Attacks</th><th>URLs</th><th>Actions</th><th>All-Caps</th><th>Questions</th><th>Exclamations</th></tr>'
+    html << '</table>'
+    
+
+    # General stats table 3
+
+    html << '<table><tr><th></th><th>Nick</th><th>Emoticons</th><th>Attacks</th><th>URLs</th><th>Actions</th><th>All-Caps</th><th>Questions</th><th>Exclamations</th></tr>'
 
     nick_list.each do |nick|
       html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
@@ -395,6 +411,8 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<td>%d</td></tr>' % @stats[nick].exclamations
     end
 
+
+    # Top words table
 
     html << '</table><hr><h2>Top %d Words</h2>' % @options[:top_word_count]
 
@@ -408,14 +426,16 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<tr><td>%s</td><td>%d</td></tr>' % [w, u]
     end
 
-    # Emoticons
+
+    # Top emoticons table
 
     html << '</table><hr><h2>Top %d Emoticons</h2>' % @options[:top_emoticon_count]
     html << '<table><tr><th>Emoticon</th><th>Uses</th></tr>'
     emoticons.each {|e, u| html << '<tr><td>%s</td><td>%d</td></tr>' % [e, u]}
     html << '</table>'
 
-    # Domains
+
+    # Top domains table
 
     html << '<hr><h2>Top %d Domains in URLs</h2>' % @options[:top_domain_count]
     html << '<table><tr><th>Domain Name</th><th>Uses</th></tr>'
@@ -423,6 +443,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     html << '</table>'
 
 
+    # All messages graph
 
     html << '<hr><h2>All Messages</h2><p><img src="%s.png" alt="%s on %s"></p><hr>' % [URI.encode(@channel), @channel, @network]
 
@@ -438,6 +459,9 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     File.delete temp
  
+
+    # User messages graphs
+
     html << '<h2>User Message Graphs</h2>'
 
     nick_list.each_with_index do |nick, index|
@@ -465,6 +489,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     write_progress_bar "Writing Output", 1
     puts
   end
+
 
   class IRCUser
     attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
