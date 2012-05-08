@@ -27,7 +27,11 @@ require 'optparse'
 #require 'weechat-log-stats'
 load 'lib/weechat-log-stats.rb'
 
-files, options = [], {:output_dir => "./output/", :message_threshold => 500, :nicks_file => File.expand_path("~/.weechat-log-stats.nicks")}
+files, options = [], {:output_dir => "./output/",
+                      :message_threshold => 500,
+                      :top_word_length => 10,
+                      :top_word_count => 10,
+                      :nicks_file => File.expand_path("~/.weechat-log-stats.nicks")}
 
 WIDTH = `tput cols`.chomp.to_i
 
@@ -46,6 +50,14 @@ OptionParser.new do |opts|
 
   opts.on("-t", "--message-threshold N", Integer, "Minimum message count for inclusion in output") do |i|
     options[:message_threshold] = i
+  end
+
+  opts.on("--top-word-length N", Integer, "Minimum length for words shown in top words.") do |i|
+    options[:top_word_length] = i
+  end
+
+  opts.on("--top-word-count N", Integer, "Number of words shown in the top words.") do |i|
+    options[:top_word_count] = i
   end
 
   opts.on_tail("-h", "--help", "Show this message") do
