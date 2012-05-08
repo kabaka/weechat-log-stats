@@ -242,7 +242,7 @@ some manual nick change correction is performed. Only users that have spoken at 
       -s #{@start_time} -e N #{current.rrd_def} \
       'COMMENT:                            Average   Minimum   Maximum    Current\\c' \
       #{current.rrd_area} #{current.rrd_print} \
-      --title="#{@channel} on #{@network}" --vertical-label="Messages Per Day" \
+      --title="#{nick} on #{@channel} on #{@network}" --vertical-label="Messages Per Day" \
       -w 800 -h 300`
 
       write_progress_bar "Writing Output", index.to_f / nick_list.length.to_f
