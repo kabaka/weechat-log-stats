@@ -328,7 +328,9 @@ some manual nick change correction is performed. Only users that have spoken at 
       @rrd_def, @rrd_area, @rrd_print = rrd_def, rrd_area, rrd_print
 
       @color = Digest::MD5.hexdigest(nick)[0..5]
-      #@color = "%06x" % rand(0xFFFFFF) # TODO: Use a hash of the nick.
+      if @color =~ /f.f.f./
+        @color[0] = "0"
+      end
 
       @rrd_def   = "'DEF:#{nick}=#{tmp_dir}/#{nick}.rrd:messages:AVERAGE'"
       @rrd_area  = "'AREA:#{nick}##{@color}:#{nick.ljust(20)}:STACK'"
