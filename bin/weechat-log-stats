@@ -31,6 +31,7 @@ files, options = [], {:output_dir => "./output/",
                       :message_threshold => 500,
                       :top_word_length => 6,
                       :top_word_count => 10,
+                      :top_emoticon_count => 10,
                       :nicks_file => File.expand_path("~/.weechat-log-stats.nicks")}
 
 WIDTH = `tput cols`.chomp.to_i
@@ -52,11 +53,15 @@ OptionParser.new do |opts|
     options[:message_threshold] = i
   end
 
-  opts.on("--top-word-length N", Integer, "Minimum length for words shown in top words.") do |i|
+  opts.on("-e", "--top-emoticon-count N", Integer, "Number of emoticons shown in the top emoticons.") do |i|
+    options[:top_emoticon_count] = i
+  end
+
+  opts.on("--top-word-length N", Integer, "Minimum length for words shown in top words") do |i|
     options[:top_word_length] = i
   end
 
-  opts.on("--top-word-count N", Integer, "Number of words shown in the top words.") do |i|
+  opts.on("-w", "--top-word-count N", Integer, "Number of words shown in the top words") do |i|
     options[:top_word_count] = i
   end
 

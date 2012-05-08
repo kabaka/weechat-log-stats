@@ -33,7 +33,7 @@ module IRCStats
 
     @options = options
 
-    @stats, @long_words = {}, {}
+    @stats, @long_words, @emoticons = {}, {}, {}
 
     @network, @channel = File.basename(filename).split(/\./)[1..2]
 
@@ -47,13 +47,43 @@ module IRCStats
     `rm -r #{@tmp_dir}` if Dir.exists? @tmp_dir
   end
 
-  def self.word_stats(arr)
+  def self.word_stats(nick, action, arr, line)
+    arr.shift if action
+    return if arr.empty?
+
     arr.each do |word|
+      if word.start_with? "http://" or word.start_with? "https://"
+        @stats[nick].urls += 1
+      end
+
+      # TODO: Make this more complete.
+      if word =~ /\A(:(',)?-?.|.:|;.;|-.-|\.[^.]{1}\.)\Z/
+        @stats[nick].emoticons += 1
+
+        @emoticons[word] ||= 0
+        @emoticons[word]  += 1
+      end
+
       next if word.length < @options[:top_word_length]
       word.downcase!
 
       @long_words[word] ||= 0
       @long_words[word]  += 1
+    end
+
+    case arr.last[-1]
+    when "?"
+      @stats[nick].questions += 1
+    when "!"
+      @stats[nick].exclamations += 1
+    end
+
+    if action
+      @stats[nick].slaps += 1 if arr.first.downcase == "slaps"
+    end
+
+    if line =~ /[A-Z]{3,}/ and line == line.upcase
+      @stats[nick].allcaps += 1
     end
   end
 
@@ -66,8 +96,9 @@ module IRCStats
     nick, text = $4, $5
     date = "%s%s%s" % [year, month, day]
     text_arr = text.split
+    action = nick == " *"
 
-    nick = text_arr.first if nick == " *"
+    nick = text_arr.first if action
 
     return if nick.include? ' ' or nick == "=!="
 
@@ -153,8 +184,9 @@ module IRCStats
     @nick_stats[nick] ||= 0
     @nick_stats[nick]  += 1
 
-    word_stats text_arr
+    word_stats nick, action, text_arr, text
     @stats[nick].add_line(text)
+    @stats[nick].actions += 1 if action
   end
 
   def self.read_file(filename)
@@ -208,6 +240,8 @@ module IRCStats
 
     mt = @options[:message_threshold]
     num_deleted = @stats.length - @stats.delete_if {|n, u| u.line_count < mt}.length
+
+    emoticons = @emoticons.sort_by {|e, c| c * -1}.shift(@options[:top_emoticon_count])
 
     my_output_dir = @options[:output_dir].dup
     Dir.mkdir my_output_dir unless Dir.exists? my_output_dir
@@ -301,6 +335,16 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<td>%d</td><td>%d</td><td>%s</td></tr>' % [@stats[nick].kicked, @stats[nick].kicker, @stats[nick].modes]
     end
 
+    html << '</table><table><tr><th></th><th>Nick</th><th>Emoticons</th><th>Slaps</th><th>URLs</th><th>Actions</th><th>All-Caps</th><th>Questions</th><th>Exclamations</th></tr>'
+
+    nick_list.each do |nick|
+      html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
+      html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
+      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].emoticons, @stats[nick].slaps, @stats[nick].urls]
+      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].actions, @stats[nick].allcaps, @stats[nick].questions]
+      html << '<td>%d</td></tr>' % @stats[nick].exclamations
+    end
+
 
     html << '</table><hr><h2>Top %d Words</h2>' % @options[:top_word_count]
 
@@ -314,8 +358,14 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<tr><td>%s</td><td>%d</td></tr>' % [w, u]
     end
 
+    html << '</table><hr><h2>Top %d Emoticons</h2>' % @options[:top_emoticon_count]
+    html << '<table><tr><th>Emoticon</th><th>Uses</th></tr>'
+
+    emoticons.each do |w, u|
+      html << '<tr><td>%s</td><td>%d</td></tr>' % [w, u]
+    end
+
     html << '</table><hr>'
-    
 
     html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s"></p><hr>' % [URI.encode(@channel), @channel, @network]
 
@@ -362,11 +412,14 @@ some manual nick change correction is performed. Only users that have spoken at 
   class IRCUser
     attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
     attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes
+    attr_accessor :questions, :exclamations, :emoticons, :slaps, :urls, :actions, :allcaps
 
     def initialize(nick, tmp_dir)
       @nick = nick
 
       @joins, @parts, @quits, @kicked, @kicker, @modes = 0, 0, 0, 0, 0, 0
+      @questions, @exclamations, @emoticons = 0, 0, 0
+      @slaps, @urls, @actions, @allcaps = 0, 0, 0, 0
 
       @line_count, @line_length = 0, 0
       @word_count = 0
