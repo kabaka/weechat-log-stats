@@ -73,7 +73,7 @@ module IRCStats
       end
 
       # TODO: Make this more complete.
-      if word =~ /\A(:(',)?-?.|.:|;.;|-.-|\.[^.]{1}\.)\Z/
+      if word =~ /\A(:(',)?-?.|.-?:|;.;|-.-|\.[^.]{1}\.)\Z/
         @stats[nick].emoticons += 1
 
         @emoticons[word] ||= 0
