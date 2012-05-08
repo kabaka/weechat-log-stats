@@ -33,7 +33,7 @@ module IRCStats
 
     @options = options
 
-    @stats, @long_words, @emoticons = {}, {}, {}
+    @stats, @long_words, @emoticons, @domains = {}, {}, {}, {}
 
     @network, @channel = File.basename(filename).split(/\./)[1..2]
 
@@ -52,8 +52,13 @@ module IRCStats
     return if arr.empty?
 
     arr.each do |word|
-      if word.start_with? "http://" or word.start_with? "https://"
+      if word =~ /\Ahttps?:\/\/(www\.)?([^\/]+)/
         @stats[nick].urls += 1
+
+        domain = $2.downcase
+
+        @domains[domain] ||= 0
+        @domains[domain]  += 1
       end
 
       # TODO: Make this more complete.
@@ -236,12 +241,13 @@ module IRCStats
 
     write_progress_bar "Writing Output", 0
 
+    domains    = @domains.sort_by    {|d, c| c * -1}.shift(@options[:top_domain_count])
+    emoticons  = @emoticons.sort_by  {|e, c| c * -1}.shift(@options[:top_emoticon_count])
     long_words = @long_words.sort_by {|w, c| c * -1}.shift(@options[:top_word_count])
 
     mt = @options[:message_threshold]
     num_deleted = @stats.length - @stats.delete_if {|n, u| u.line_count < mt}.length
 
-    emoticons = @emoticons.sort_by {|e, c| c * -1}.shift(@options[:top_emoticon_count])
 
     my_output_dir = @options[:output_dir].dup
     Dir.mkdir my_output_dir unless Dir.exists? my_output_dir
@@ -358,16 +364,22 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<tr><td>%s</td><td>%d</td></tr>' % [w, u]
     end
 
+    # Emoticons
+
     html << '</table><hr><h2>Top %d Emoticons</h2>' % @options[:top_emoticon_count]
     html << '<table><tr><th>Emoticon</th><th>Uses</th></tr>'
+    emoticons.each {|e, u| html << '<tr><td>%s</td><td>%d</td></tr>' % [e, u]}
+    html << '</table>'
 
-    emoticons.each do |w, u|
-      html << '<tr><td>%s</td><td>%d</td></tr>' % [w, u]
-    end
+    # Domains
 
-    html << '</table><hr>'
+    html << '<hr><h2>Top %d Domains in URLs</h2>' % @options[:top_domain_count]
+    html << '<table><tr><th>Domain Name</th><th>Uses</th></tr>'
+    domains.each {|d, u| html << '<tr><td>%s</td><td>%d</td></tr>' % [d, u]}
+    html << '</table>'
 
-    html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s"></p><hr>' % [URI.encode(@channel), @channel, @network]
+
+    html << '<hr><h2>All Messages</h2><p><img src="%s.png" alt="%s on %s"></p><hr>' % [URI.encode(@channel), @channel, @network]
 
 
     # rrdtool shits a brick (rather than a graph) when we feed it too much, 
