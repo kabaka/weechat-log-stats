@@ -352,7 +352,7 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     `rrdtool graph \
     '#{my_output_dir}/hourly-#{@channel}.png' \
-    -a PNG -s #{hourly_start} -e #{hourly_start + 86400} -g -M \
+    -a PNG -s #{hourly_start} -e #{hourly_start + 86400} -g -M -l 0 \
     --vertical-label='Messages Per Hour' \
      --x-grid HOUR:1:HOUR:1:HOUR:1:0:%H \
     'DEF:messages=#{@tmp_dir}/.hourly.rrd:messages:MAX' \
@@ -432,7 +432,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     
     temp = "%s/%s" % [@tmp_dir, "temp"]
 
-    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e N -g #{defs} #{areas} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -w 800 -h 300")}
+    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e N -g #{defs} #{areas} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -l 0 -w 800 -h 300")}
 
     `cat #{temp} | rrdtool -`
 
