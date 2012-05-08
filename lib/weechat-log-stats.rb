@@ -49,8 +49,8 @@ module IRCStats
 
   def self.word_stats(arr)
     arr.each do |word|
-      word.downcase!
       next if word.length < @options[:top_word_length]
+      word.downcase!
 
       @long_words[word] ||= 0
       @long_words[word]  += 1
