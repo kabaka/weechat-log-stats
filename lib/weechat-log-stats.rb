@@ -267,10 +267,11 @@ td.color {
   text-align: center;
   margin: 5px auto;
 }
-</style></head><body><div id=\"content\"><h1>User Activity in #{@channel} on #{@network}</h1>
+</style></head><body><div id=\"content\"><h1>Channel Activity - #{@channel} on #{@network}</h1>
 <p><em>Nicks are changed to lower case, some characters are replaced with underscores, and
 some manual nick change correction is performed. Only users that have spoken at least
 #{mt} lines are shown. #{num_deleted} users did not make the cut.</em></p>
+<hr><h2>General Statistics</h2>
 <table><tr><th></th><th>Nick</th><th>Total Lines</th><th>Average Line Length</th><th>Words Per Line</th></tr>"
 
     areas, defs, = "", ""
@@ -324,8 +325,10 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     File.delete temp
  
+    html << '<h2>User Message Graphs</h2>'
+
     nick_list.each_with_index do |nick, index|
-      html << '<h2><a name="%s"></a>%s</h2><p>' % [nick, nick]
+      html << '<h3><a name="%s"></a>%s</h3><p>' % [nick, nick]
       html << '<img src="%s.png" alt="%s on %s"></p>' % [nick, nick, @channel]
 
       current = @stats[nick]
