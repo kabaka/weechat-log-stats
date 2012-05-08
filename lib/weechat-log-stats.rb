@@ -54,10 +54,59 @@ module IRCStats
     year, month, day = $1, $2, $3
     nick, text = $4, $5
     date = "%s%s%s" % [year, month, day]
+    text_arr = text.split
 
-    nick = text.split.first if nick == " *"
+    nick = text_arr.first if nick == " *"
 
-    return if nick.include? ' ' or nick =~ /\A<?-->?|=!=\Z/
+    return if nick.include? ' ' or nick == "=!="
+
+    case nick
+
+    when "<--"
+      nick = correct_nick(text_arr.shift)
+      return if nick == nil or nick.empty? or nick.include? '*'
+
+      @stats[nick] ||= IRCUser.new(nick, @tmp_dir)
+
+      case text_arr[2]
+      when "quit"
+        @stats[nick].quits += 1
+
+      when "left"
+        @stats[nick].parts += 1
+
+      else
+        # kick
+        @stats[nick].kicker += 1
+
+        target = text_arr[2]
+        @stats[target] ||= IRCUser.new(nick, @tmp_dir)
+        @stats[target].kicked += 1
+
+      end
+
+      return
+
+    when  "-->"
+      nick = correct_nick(text_arr.shift)
+      return if nick == nil or nick.empty? or nick.include? '*'
+
+      @stats[nick] ||= IRCUser.new(nick, @tmp_dir)
+      @stats[nick].joins += 1
+
+      return
+
+    when "--"
+      return unless text_arr.shift == "Mode"
+
+      nick = correct_nick(text_arr.last)
+      return if nick == nil or nick.empty? or nick.include? '*'
+
+      @stats[nick] ||= IRCUser.new(nick, @tmp_dir)
+      @stats[nick].modes += 1
+
+      return
+    end
 
     nick = correct_nick(nick)
 
@@ -87,7 +136,7 @@ module IRCStats
        RRA:AVERAGE:0.5:1:365 \
        RRA:MAX:0.5:1:365`
 
-       @stats[nick] = IRCUser.new(nick, @tmp_dir)
+       @stats[nick] ||= IRCUser.new(nick, @tmp_dir)
     end
 
     @nick_stats[nick] ||= 0
@@ -193,9 +242,9 @@ tr:hover {
 tr a {
   text-decoration: none;
 }
-td {
+/*td {
   width: 200px;
-}
+}*/
 td.color {
   width: 25px;
 }
@@ -217,8 +266,17 @@ some manual nick change correction is performed. Only users that have spoken at 
       defs  << "%s " % @stats[nick].rrd_def
     end
 
-    html << '</table><hr>'
-    html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p><hr>' % [URI.encode(@channel), @channel, @network]
+    html << '</table><table><tr><th></th><th>Nick</th><th>Joins</th><th>Quits</th><th>Parts</th><th>Kicked</th><th>Kicker</th><th>Modes</th></tr>'
+
+    nick_list.each do |nick|
+      html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
+      html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
+      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].joins, @stats[nick].quits, @stats[nick].parts]
+      html << '<td>%d</td><td>%d</td><td>%s</td></tr>' % [@stats[nick].kicked, @stats[nick].kicker, @stats[nick].modes]
+    end
+
+
+    html << '</table><hr><h2>All Messages</h2><p><img src="%s.png" alt="%s on %s" /></p><hr>' % [URI.encode(@channel), @channel, @network]
 
 
     # rrdtool shits a brick (rather than a graph) when we feed it too much, 
@@ -257,10 +315,13 @@ some manual nick change correction is performed. Only users that have spoken at 
   end
 
   class IRCUser
-    attr_reader   :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
+    attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
+    attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes
 
     def initialize(nick, tmp_dir)
       @nick = nick
+
+      @joins, @parts, @quits, @kicked, @kicker, @modes = 0, 0, 0, 0, 0, 0
 
       @line_count, @line_length = 0, 0
       @word_count = 0
