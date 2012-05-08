@@ -295,7 +295,11 @@ some manual nick change correction is performed. Only users that have spoken at 
     end
 
 
-    html << '</table><hr>'
+    html << '</table><hr><h2>Top %d Words</h2>' % @options[:top_word_count]
+
+    if @options[:top_word_length] > 1
+      html << '<p><em>Only words %d characters or longer are counted.</em></p>' % @options[:top_word_length]
+    end
 
     html << '<table><tr><th>Word</th><th>Uses</th></tr>'
 
