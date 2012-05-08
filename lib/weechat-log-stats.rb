@@ -31,6 +31,8 @@ module IRCStats
     @current_date, @start_time = "", 0
     @tmp_dir = `mktemp -d`.chomp
 
+    @hourly = []
+
     @options = options
 
     @stats, @long_words, @emoticons, @domains = {}, {}, {}, {}
@@ -70,6 +72,8 @@ module IRCStats
       end
 
       next if word.length < @options[:top_word_length]
+      next if word =~ /\A[[:punct:]]/ or word =~ /[[:punct:]]\Z/
+      
       word.downcase!
 
       @long_words[word] ||= 0
@@ -93,12 +97,12 @@ module IRCStats
   end
 
   def self.parse_line(file, size, line)
-    unless line =~ /\A(\d{4})-(\d{2})-(\d{2})\s[\d:]{8}\t[@+&~!%]?([^\t]+)\t(.+)\Z/
+    unless line =~ /\A(\d{4})-(\d{2})-(\d{2})\s(\d{2}):[\d:]{5}\t[@+&~!%]?([^\t]+)\t(.+)\Z/
       return
     end
 
     year, month, day = $1, $2, $3
-    nick, text = $4, $5
+    hour, nick, text = $4.to_i, $5, $6
     date = "%s%s%s" % [year, month, day]
     text_arr = text.split
     action = nick == " *"
@@ -179,12 +183,15 @@ module IRCStats
     unless File.exists? "#{@tmp_dir}/#{nick}.rrd"
       `rrdtool create '#{@tmp_dir}/#{nick}.rrd' --step 86400 \
        --start #{@start_time} \
-       DS:messages:GAUGE:86400:0:10000 \
+       DS:messages:GAUGE:86400:0:100000 \
        RRA:AVERAGE:0.5:1:365 \
        RRA:MAX:0.5:1:365`
 
        @stats[nick] ||= IRCUser.new(nick, @tmp_dir)
     end
+
+    @hourly[hour] ||= 1
+    @hourly[hour]  += 1
 
     @nick_stats[nick] ||= 0
     @nick_stats[nick]  += 1
@@ -316,8 +323,36 @@ td.color {
 </style></head><body><div id=\"content\"><h1>Channel Activity - #{@channel} on #{@network}</h1>
 <p>Nicks are changed to lower case, some characters are replaced with underscores, and
 some manual nick change correction is performed. Only users that have spoken at least
-#{mt} lines are shown. #{num_deleted} users did not make the cut.</p>
-<hr><h2>General Statistics</h2>
+#{mt} lines are shown. #{num_deleted} users did not make the cut.</p>"
+    
+    html << '<hr><h2>Activity by Hour</h2><p class="center"><em>Time Zone: UTC%s</em></p>' % Time.now.strftime("%z")
+
+    hourly_start = Time.mktime(2000, 1, 1, 0, 0, 0).to_i
+
+    `rrdtool create '#{@tmp_dir}/.hourly.rrd' --step 3600 \
+    --start #{hourly_start} \
+    DS:messages:GAUGE:3600:0:100000 \
+    RRA:MAX:0.5:1:365`
+    
+    hourly = hourly_start
+
+    @hourly.each do |m|
+      hourly += 3600
+      `rrdtool update '#{@tmp_dir}/.hourly.rrd' '#{hourly}:#{m}'`
+    end
+
+    `rrdtool graph \
+    '#{my_output_dir}/hourly-#{@channel}.png' \
+    -a PNG -s #{hourly_start} -e #{hourly_start + 86400} -g -M \
+    --vertical-label='Messages Per Hour' \
+     --x-grid HOUR:1:HOUR:1:HOUR:1:0:%H \
+    'DEF:messages=#{@tmp_dir}/.hourly.rrd:messages:MAX' \
+    'AREA:messages#00FF00:Total Messages' \
+    -w 800 -h 300`
+
+    html << '<p><img src="hourly-%s.png"></p>' % URI.encode(@channel)
+
+    html << "<hr><h2>General Statistics</h2>
 <table><tr><th></th><th>Nick</th><th>Total Lines</th><th>Average Line Length</th><th>Words Per Line</th></tr>"
 
     areas, defs, = "", ""
@@ -377,6 +412,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     html << '<table><tr><th>Domain Name</th><th>Uses</th></tr>'
     domains.each {|d, u| html << '<tr><td>%s</td><td>%d</td></tr>' % [d, u]}
     html << '</table>'
+
 
 
     html << '<hr><h2>All Messages</h2><p><img src="%s.png" alt="%s on %s"></p><hr>' % [URI.encode(@channel), @channel, @network]
@@ -442,7 +478,7 @@ some manual nick change correction is performed. Only users that have spoken at 
         @color[0] = "0"
       end
 
-      @rrd_def   = "'DEF:#{nick}=#{tmp_dir}/#{nick}.rrd:messages:AVERAGE'"
+      @rrd_def   = "'DEF:#{nick}=#{tmp_dir}/#{nick}.rrd:messages:MAX'"
       @rrd_area  = "'AREA:#{nick}##{@color}:#{nick.ljust(20)}:STACK'"
       @rrd_print = "'GPRINT:#{nick}:AVERAGE:%4.0lf' \
                     'GPRINT:#{nick}:MIN:%8.0lf' \
