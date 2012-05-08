@@ -29,7 +29,7 @@ load 'lib/weechat-log-stats.rb'
 
 files, options = [], {:output_dir => "./output/",
                       :message_threshold => 500,
-                      :top_word_length => 10,
+                      :top_word_length => 6,
                       :top_word_count => 10,
                       :nicks_file => File.expand_path("~/.weechat-log-stats.nicks")}
 

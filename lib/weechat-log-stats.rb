@@ -49,6 +49,7 @@ module IRCStats
 
   def self.word_stats(arr)
     arr.each do |word|
+      word.downcase!
       next if word.length < @options[:top_word_length]
 
       @long_words[word] ||= 0
@@ -302,7 +303,7 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<tr><td>%s</td><td>%d</td></tr>' % [w, u]
     end
 
-    html << '</table>'
+    html << '</table><hr>'
     
 
     html << '<h2>All Messages</h2><p><img src="%s.png" alt="%s on %s"></p><hr>' % [URI.encode(@channel), @channel, @network]
