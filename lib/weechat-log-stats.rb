@@ -206,9 +206,8 @@ module IRCStats
 
     long_words = @long_words.sort_by {|w, c| c * -1}.shift(@options[:top_word_count])
 
-    num_deleted = @stats.length
     mt = @options[:message_threshold]
-    num_deleted -= @stats.delete_if {|n, u| u.line_count < mt}.length
+    num_deleted = @stats.length - @stats.delete_if {|n, u| u.line_count < mt}.length
 
     my_output_dir = @options[:output_dir].dup
     Dir.mkdir my_output_dir unless Dir.exists? my_output_dir
