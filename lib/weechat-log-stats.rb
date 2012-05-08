@@ -31,6 +31,15 @@ module IRCStats
     @current_date, @start_time = "", 0
     @tmp_dir = `mktemp -d`.chomp
 
+    @slaps = [
+      "slaps",
+      "hits",
+      "punches",
+      "attacks",
+      "stabs",
+      "shoots"
+    ]
+
     @hourly = []
 
     @options = options
@@ -88,7 +97,7 @@ module IRCStats
     end
 
     if action
-      @stats[nick].slaps += 1 if arr.first.downcase == "slaps"
+      @stats[nick].attacks += 1 if @slaps.include? arr.first.downcase
     end
 
     if line =~ /[A-Z]{3,}/ and line == line.upcase
@@ -376,12 +385,12 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<td>%d</td><td>%d</td><td>%s</td></tr>' % [@stats[nick].kicked, @stats[nick].kicker, @stats[nick].modes]
     end
 
-    html << '</table><table><tr><th></th><th>Nick</th><th>Emoticons</th><th>Slaps</th><th>URLs</th><th>Actions</th><th>All-Caps</th><th>Questions</th><th>Exclamations</th></tr>'
+    html << '</table><table><tr><th></th><th>Nick</th><th>Emoticons</th><th>Attacks</th><th>URLs</th><th>Actions</th><th>All-Caps</th><th>Questions</th><th>Exclamations</th></tr>'
 
     nick_list.each do |nick|
       html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
       html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
-      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].emoticons, @stats[nick].slaps, @stats[nick].urls]
+      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].emoticons, @stats[nick].attacks, @stats[nick].urls]
       html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].actions, @stats[nick].allcaps, @stats[nick].questions]
       html << '<td>%d</td></tr>' % @stats[nick].exclamations
     end
@@ -460,14 +469,14 @@ some manual nick change correction is performed. Only users that have spoken at 
   class IRCUser
     attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
     attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes
-    attr_accessor :questions, :exclamations, :emoticons, :slaps, :urls, :actions, :allcaps
+    attr_accessor :questions, :exclamations, :emoticons, :attacks, :urls, :actions, :allcaps
 
     def initialize(nick, tmp_dir)
       @nick = nick
 
       @joins, @parts, @quits, @kicked, @kicker, @modes = 0, 0, 0, 0, 0, 0
       @questions, @exclamations, @emoticons = 0, 0, 0
-      @slaps, @urls, @actions, @allcaps = 0, 0, 0, 0
+      @attacks, @urls, @actions, @allcaps = 0, 0, 0, 0
 
       @line_count, @line_length = 0, 0
       @word_count = 0
