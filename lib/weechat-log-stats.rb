@@ -359,7 +359,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     'AREA:messages#00FF00:Total Messages' \
     -w 800 -h 300`
 
-    html << '<p><img src="hourly-%s.png"></p>' % URI.encode(@channel)
+    html << '<p><img src="hourly-%s.png" alt="Usage by hour"></p>' % URI.encode(@channel)
 
     html << "<hr><h2>General Statistics</h2>
 <table><tr><th></th><th>Nick</th><th>Total Lines</th><th>Average Line Length</th><th>Words Per Line</th></tr>"
