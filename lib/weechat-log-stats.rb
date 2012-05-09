@@ -56,9 +56,13 @@ module IRCStats
     clean
   end
 
+
+
   def self.clean
     `rm -r #{@tmp_dir}` if Dir.exists? @tmp_dir
   end
+
+
 
   def self.word_stats(nick, action, arr, line)
     arr.shift if action
@@ -100,14 +104,14 @@ module IRCStats
     @stats[nick].questions    += line.count '?'
     @stats[nick].exclamations += line.count '!'
 
-    if action
-      @stats[nick].attacks += 1 if @slaps.include? arr.first.downcase
-    end
+    @stats[nick].attacks += 1 if action and @slaps.include? arr.first.downcase
 
     if line =~ /[A-Z]{3,}/ and line == line.upcase
       @stats[nick].allcaps += 1
     end
   end
+
+
 
   def self.parse_line(file, size, line)
     unless line =~ /\A(\d{4})-(\d{2})-(\d{2})\s(\d{2}):(\d{2}):(\d{2})\t[@+&~!%]?([^\t]+)\t(.+)\Z/
@@ -223,6 +227,8 @@ module IRCStats
     @stats[nick].actions += 1 if action
   end
 
+
+
   def self.read_file(filename)
     raise "No such file: #{filename}" unless File.exists? filename
 
@@ -237,6 +243,8 @@ module IRCStats
     write_progress_bar "Parsing", 1
     puts
   end
+
+
 
   def self.correct_nick(nick)
     nick.downcase!
@@ -271,6 +279,8 @@ module IRCStats
 
     nick
   end
+
+
 
   # TODO: Rewrite this whole thing. It is held together with duct take and bad code.
   def self.write_html
@@ -537,6 +547,8 @@ some manual nick change correction is performed. Only users that have spoken at 
     puts
   end
 
+
+
   def self.print_table(html, nicks_sorted, fields)
     html << '<table><tr><th></th><th>Nick</th>'
     
@@ -582,6 +594,7 @@ some manual nick change correction is performed. Only users that have spoken at 
   end
 
 
+
   class IRCUser
     attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
     attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes, :periods, :commas, :regex
@@ -611,6 +624,7 @@ some manual nick change correction is performed. Only users that have spoken at 
                     'GPRINT:#{nick}:LAST:%8.0lf\\c' "
     end
 
+
     def add_line(line)
       @line_count  += 1
       @line_length += line.length
@@ -618,9 +632,11 @@ some manual nick change correction is performed. Only users that have spoken at 
       @word_count +=  line.split.length
     end
 
+
     def average_line_length
       @line_length / @line_count
     end
+
 
     def words_per_line
       @word_count / @line_count
