@@ -40,7 +40,7 @@ module IRCStats
       "shoots"
     ]
 
-    @hourly = []
+    @hourly, @weekly = [], []
 
     @options = options
 
@@ -172,7 +172,9 @@ module IRCStats
 
     return if nick == nil or nick.empty? or nick.include? '*'
 
-    ts = Time.mktime(year, month, day).to_i
+    time = Time.mktime(year, month, day)
+    ts = time.to_i
+    wday = time.wday
 
     unless date == @current_date
       @start_time   = ts - 1 if @current_date.empty? and not date.empty?
@@ -201,6 +203,9 @@ module IRCStats
 
     @hourly[hour] ||= 1
     @hourly[hour]  += 1
+
+    @weekly[wday] ||= 1
+    @weekly[wday]  += 1
 
     @nick_stats[nick] ||= 0
     @nick_stats[nick]  += 1
@@ -365,6 +370,36 @@ some manual nick change correction is performed. Only users that have spoken at 
     html << '<p><img src="hourly-%s.png" alt="Usage by hour"></p>' % URI.encode(@channel)
 
 
+    # Weekly graph
+
+    html << '<hr><h2>Activity by Day of Week</h2><p class="center">'
+
+    weekly_start = Time.mktime(2000, 1, 2, 0, 0, 0).to_i
+
+    `rrdtool create '#{@tmp_dir}/.weekly.rrd' --step 86400 \
+    --start #{weekly_start} \
+    DS:messages:GAUGE:86400:0:100000 \
+    RRA:MAX:0.5:1:365`
+    
+    weekly = weekly_start
+
+    @weekly.each do |m|
+      weekly += 86400
+      `rrdtool update '#{@tmp_dir}/.weekly.rrd' '#{weekly}:#{m}'`
+    end
+
+    `rrdtool graph \
+    '#{my_output_dir}/weekly-#{@channel}.png' \
+    -a PNG -s #{weekly_start} -e #{weekly_start + (86400 * 7)} -g -M -l 0 \
+    --vertical-label='Messages Per Day' \
+     --x-grid DAY:1:DAY:1:DAY:1:0:%A \
+    'DEF:messages=#{@tmp_dir}/.weekly.rrd:messages:MAX' \
+    'AREA:messages#00FF00:Total Messages' \
+    -w 800 -h 300`
+
+    html << '<p><img src="weekly-%s.png" alt="Usage by day of week"></p>' % URI.encode(@channel)
+
+
     # General stats table 1
 
     html << "<hr><h2>General Statistics</h2>
@@ -420,26 +455,24 @@ some manual nick change correction is performed. Only users that have spoken at 
       html << '<p class="center"><em>Only words %d characters or longer are counted.</em></p>' % @options[:top_word_length]
     end
 
-    html << '<table><tr><th>Word</th><th>Uses</th></tr>'
-
-    long_words.each do |w, u|
-      html << '<tr><td>%s</td><td>%d</td></tr>' % [w, u]
-    end
+    html << '<table><tr><th></th><th>Word</th><th>Uses</th></tr>'
+    long_words.each_with_index {|(w, u), i| html << '<tr><td>%d</td><td>%s</td><td>%d</td></tr>' % [i+1, w, u]}
+    html << '</table>'
 
 
     # Top emoticons table
 
-    html << '</table><hr><h2>Top %d Emoticons</h2>' % @options[:top_emoticon_count]
-    html << '<table><tr><th>Emoticon</th><th>Uses</th></tr>'
-    emoticons.each {|e, u| html << '<tr><td>%s</td><td>%d</td></tr>' % [e, u]}
+    html << '<hr><h2>Top %d Emoticons</h2>' % @options[:top_emoticon_count]
+    html << '<table><tr><th></th><th>Emoticon</th><th>Uses</th></tr>'
+    emoticons.each_with_index {|(e, u), i| html << '<tr><td>%d</td><td>%s</td><td>%d</td></tr>' % [i+1, e, u]}
     html << '</table>'
 
 
     # Top domains table
 
     html << '<hr><h2>Top %d Domains in URLs</h2>' % @options[:top_domain_count]
-    html << '<table><tr><th>Domain Name</th><th>Uses</th></tr>'
-    domains.each {|d, u| html << '<tr><td>%s</td><td>%d</td></tr>' % [d, u]}
+    html << '<table><tr><th></th><th>Domain Name</th><th>Uses</th></tr>'
+    domains.each_with_index {|(d, u), i| html << '<tr><td>%d</td><td>%s</td><td>%d</td></tr>' % [i+1, d, u]}
     html << '</table>'
 
 
