@@ -82,6 +82,10 @@ module IRCStats
         @emoticons[word]  += 1
       end
 
+      if word =~ /\As\/.+\/.*\/.*\Z/
+        @stats[nick].regex += 1
+      end
+
       next if word.length < @options[:top_word_length]
       next if word =~ /\A[[:punct:]]/ or word =~ /[[:punct:]]\Z/
       
@@ -91,12 +95,10 @@ module IRCStats
       @long_words[word]  += 1
     end
 
-    case arr.last[-1]
-    when "?"
-      @stats[nick].questions += 1
-    when "!"
-      @stats[nick].exclamations += 1
-    end
+    @stats[nick].periods      += line.count '.'
+    @stats[nick].commas       += line.count ','
+    @stats[nick].questions    += line.count '?'
+    @stats[nick].exclamations += line.count '!'
 
     if action
       @stats[nick].attacks += 1 if @slaps.include? arr.first.downcase
@@ -249,9 +251,21 @@ module IRCStats
 
     NICK_CHECKS.each do |check|
       if check.glob
-        return check.nick if File.fnmatch(check.str, nick)
+        if File.fnmatch(check.str, nick)
+          if check.nick == "*"
+            return "ANONYMOUS"
+          else
+            return check.nick
+          end
+        end
       else
-        return check.nick if nick == check.str
+        if nick == check.str
+          if check.nick == "*"
+            return "ANONYMOUS"
+          else
+            return check.nick
+          end
+        end
       end
     end
 
@@ -421,26 +435,31 @@ some manual nick change correction is performed. Only users that have spoken at 
     html << "<hr><h2>General Statistics</h2>"
 
     print_table(html, nick_list,
-                :line_count => "Total Lines",
-                :average_line_length => "Average Line Length",
-                :words_per_line => "Words Per Line" )
+                :line_count           => "Total Lines",
+                :average_line_length  => "Average Line Length",
+                :words_per_line       => "Words Per Line" )
 
     print_table(html, nick_list,
-                :joins => "Joins",
-                :quits => "Quits",
-                :parts => "Parts",
-                :kicked => "Kicked",
-                :kicker => "Kicker",
-                :modes => "Modes")
+                :joins        => "Joins",
+                :quits        => "Quits",
+                :parts        => "Parts",
+                :kicked       => "Kicked",
+                :kicker       => "Kicker",
+                :modes        => "Modes")
     
     print_table(html, nick_list,
-                :emoticons => "Emoticons",
-                :attacks => "Slaps",
-                :urls => "URLs",
-                :actions => "Actions",
-                :allcaps => "All-Caps",
-                :questions => "Questions",
-                :exclamations => "Exclamations")
+                :emoticons    => "Emoticons",
+                :attacks      => "Slaps",
+                :urls         => "URLs",
+                :regex        => "Regexes",
+                :actions      => "Actions")
+
+    print_table(html, nick_list,
+                :allcaps      => "All-Caps",
+                :periods      => "Periods",
+                :commas       => "Commas",
+                :questions    => "Question Marks",
+                :exclamations => "Exclamation Marks")
 
     # Top words table
 
@@ -565,15 +584,15 @@ some manual nick change correction is performed. Only users that have spoken at 
 
   class IRCUser
     attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
-    attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes
+    attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes, :periods, :commas, :regex
     attr_accessor :questions, :exclamations, :emoticons, :attacks, :urls, :actions, :allcaps
 
     def initialize(nick, tmp_dir)
       @nick = nick
 
       @joins, @parts, @quits, @kicked, @kicker, @modes = 0, 0, 0, 0, 0, 0
-      @questions, @exclamations, @emoticons = 0, 0, 0
-      @attacks, @urls, @actions, @allcaps = 0, 0, 0, 0
+      @questions, @exclamations, @emoticons, @periods = 0, 0, 0, 0
+      @commas, @attacks, @urls, @actions, @allcaps, @regex = 0, 0, 0, 0, 0, 0
 
       @line_count, @line_length = 0, 0
       @word_count = 0
