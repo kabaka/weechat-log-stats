@@ -201,8 +201,8 @@ module IRCStats
       `rrdtool create '#{@tmp_dir}/#{nick}.rrd' --step 86400 \
        --start #{@start_time} \
        DS:messages:GAUGE:86400:0:100000 \
-       RRA:AVERAGE:0.5:1:365 \
-       RRA:MAX:0.5:1:365`
+       RRA:AVERAGE:0.5:1:1825 \
+       RRA:MAX:0.5:1:1825`
 
        @stats[nick] ||= IRCUser.new(nick, @tmp_dir)
     end
@@ -345,7 +345,7 @@ td.highest {
 </style></head><body><div id=\"content\"><h1>Channel Activity - #{@channel} on #{@network}</h1>
 <p>Nicks are changed to lower case, some characters are replaced with underscores, and
 some manual nick change correction is performed. Only users that have spoken at least
-#{mt} lines are shown. #{num_deleted} users did not make the cut.</p>
+#{mt} lines are shown. #{num_deleted.to_fs} users did not make the cut.</p>
 <p>#{@total_lines.to_fs} total lines were parsed for #{Time.at(@start_time)} to #{@last_time}.</p>"
     
 
