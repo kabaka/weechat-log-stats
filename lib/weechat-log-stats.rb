@@ -28,8 +28,10 @@ module IRCStats
 
   def self.run(filename, options)
     @nick_stats, @now = {}, Time.now.to_i
-    @current_date, @start_time = "", 0
+    @current_date, @start_time, @last_time = "", 0, 0
     @tmp_dir = `mktemp -d`.chomp
+
+    @total_lines = 0
 
     @slaps = [
       "slaps",
@@ -106,12 +108,15 @@ module IRCStats
   end
 
   def self.parse_line(file, size, line)
-    unless line =~ /\A(\d{4})-(\d{2})-(\d{2})\s(\d{2}):[\d:]{5}\t[@+&~!%]?([^\t]+)\t(.+)\Z/
+    unless line =~ /\A(\d{4})-(\d{2})-(\d{2})\s(\d{2}):(\d{2}):(\d{2})\t[@+&~!%]?([^\t]+)\t(.+)\Z/
       return
     end
 
+    @total_lines += 1
+
     year, month, day = $1, $2, $3
-    hour, nick, text = $4.to_i, $5, $6
+    hour, minute, second = $4.to_i, $5.to_i, $6.to_i
+    nick, text = $7, $8
     date = "%s%s%s" % [year, month, day]
     text_arr = text.split
     action = nick == " *"
@@ -119,6 +124,11 @@ module IRCStats
     nick = text_arr.first if action
 
     return if nick.include? ' ' or nick == "=!="
+
+    time = Time.mktime(year, month, day)
+    ts = time.to_i
+    wday = time.wday
+    @last_time = Time.mktime(year, month, day, hour, minute, second)
 
     case nick
 
@@ -171,10 +181,6 @@ module IRCStats
     nick = correct_nick(nick)
 
     return if nick == nil or nick.empty? or nick.include? '*'
-
-    time = Time.mktime(year, month, day)
-    ts = time.to_i
-    wday = time.wday
 
     unless date == @current_date
       @start_time   = ts - 1 if @current_date.empty? and not date.empty?
@@ -251,7 +257,6 @@ module IRCStats
 
     nick
   end
-
 
   # TODO: Rewrite this whole thing. It is held together with duct take and bad code.
   def self.write_html
@@ -337,7 +342,8 @@ td.color {
 </style></head><body><div id=\"content\"><h1>Channel Activity - #{@channel} on #{@network}</h1>
 <p>Nicks are changed to lower case, some characters are replaced with underscores, and
 some manual nick change correction is performed. Only users that have spoken at least
-#{mt} lines are shown. #{num_deleted} users did not make the cut.</p>"
+#{mt} lines are shown. #{num_deleted} users did not make the cut.</p>
+<p>#{@total_lines.to_fs} total lines were parsed for #{Time.at(@start_time)} to #{@last_time}.</p>"
     
 
     # Hourly graph
@@ -410,8 +416,8 @@ some manual nick change correction is performed. Only users that have spoken at 
     nick_list.each do |nick|
       html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
       html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
-      html << '<td>%d</td><td>%d</td>' % [@stats[nick].line_count, @stats[nick].average_line_length]
-      html << '<td>%d</td></tr>' % @stats[nick].words_per_line
+      html << '<td>%s</td><td>%s</td>' % [@stats[nick].line_count.to_fs, @stats[nick].average_line_length.to_fs]
+      html << '<td>%s</td></tr>' % @stats[nick].words_per_line.to_fs
 
       areas << "%s " % @stats[nick].rrd_area
       defs  << "%s " % @stats[nick].rrd_def
@@ -427,8 +433,8 @@ some manual nick change correction is performed. Only users that have spoken at 
     nick_list.each do |nick|
       html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
       html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
-      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].joins, @stats[nick].quits, @stats[nick].parts]
-      html << '<td>%d</td><td>%d</td><td>%s</td></tr>' % [@stats[nick].kicked, @stats[nick].kicker, @stats[nick].modes]
+      html << '<td>%s</td><td>%s</td><td>%s</td>' % [@stats[nick].joins.to_fs, @stats[nick].quits.to_fs, @stats[nick].parts.to_fs]
+      html << '<td>%s</td><td>%s</td><td>%s</td></tr>' % [@stats[nick].kicked.to_fs, @stats[nick].kicker.to_fs, @stats[nick].modes.to_fs]
     end
 
     html << '</table>'
@@ -441,9 +447,9 @@ some manual nick change correction is performed. Only users that have spoken at 
     nick_list.each do |nick|
       html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
       html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
-      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].emoticons, @stats[nick].attacks, @stats[nick].urls]
-      html << '<td>%d</td><td>%d</td><td>%d</td>' % [@stats[nick].actions, @stats[nick].allcaps, @stats[nick].questions]
-      html << '<td>%d</td></tr>' % @stats[nick].exclamations
+      html << '<td>%s</td><td>%s</td><td>%s</td>' % [@stats[nick].emoticons.to_fs, @stats[nick].attacks.to_fs, @stats[nick].urls.to_fs]
+      html << '<td>%s</td><td>%s</td><td>%s</td>' % [@stats[nick].actions.to_fs, @stats[nick].allcaps.to_fs, @stats[nick].questions.to_fs]
+      html << '<td>%s</td></tr>' % @stats[nick].exclamations.to_fs
     end
 
 
@@ -456,7 +462,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     end
 
     html << '<table><tr><th></th><th>Word</th><th>Uses</th></tr>'
-    long_words.each_with_index {|(w, u), i| html << '<tr><td>%d</td><td>%s</td><td>%d</td></tr>' % [i+1, w, u]}
+    long_words.each_with_index {|(w, u), i| html << '<tr><td>%d</td><td>%s</td><td>%s</td></tr>' % [i+1, w, u.to_fs]}
     html << '</table>'
 
 
@@ -464,7 +470,7 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     html << '<hr><h2>Top %d Emoticons</h2>' % @options[:top_emoticon_count]
     html << '<table><tr><th></th><th>Emoticon</th><th>Uses</th></tr>'
-    emoticons.each_with_index {|(e, u), i| html << '<tr><td>%d</td><td>%s</td><td>%d</td></tr>' % [i+1, e, u]}
+    emoticons.each_with_index {|(e, u), i| html << '<tr><td>%d</td><td>%s</td><td>%s</td></tr>' % [i+1, e, u.to_fs]}
     html << '</table>'
 
 
@@ -472,7 +478,7 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     html << '<hr><h2>Top %d Domains in URLs</h2>' % @options[:top_domain_count]
     html << '<table><tr><th></th><th>Domain Name</th><th>Uses</th></tr>'
-    domains.each_with_index {|(d, u), i| html << '<tr><td>%d</td><td>%s</td><td>%d</td></tr>' % [i+1, d, u]}
+    domains.each_with_index {|(d, u), i| html << '<tr><td>%d</td><td>%s</td><td>%s</td></tr>' % [i+1, d, u.to_fs]}
     html << '</table>'
 
 
@@ -486,7 +492,7 @@ some manual nick change correction is performed. Only users that have spoken at 
     
     temp = "%s/%s" % [@tmp_dir, "temp"]
 
-    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e N -g #{defs} #{areas} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -l 0 -w 800 -h 300")}
+    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e #{@last_time.to_i} -g #{defs} #{areas} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -l 0 -w 800 -h 300")}
 
     `cat #{temp} | rrdtool -`
 
@@ -572,3 +578,11 @@ some manual nick change correction is performed. Only users that have spoken at 
 
 end # module IRCStats
 
+class Numeric
+
+  # to formatted string (number seperators!)
+  def to_fs
+    to_s.reverse.gsub(/...(?=.)/,'\&,').reverse
+  end
+
+end
