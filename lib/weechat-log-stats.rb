@@ -499,7 +499,7 @@ some manual nick change correction is performed. Only users that have spoken at 
       current = @stats[nick]
 
       `rrdtool graph '#{my_output_dir}/#{nick}.png' -a PNG \
-      -s #{@start_time} -e N #{current.rrd_def} \
+      -s #{@start_time} -e #{@last_time.to_i} #{current.rrd_def} \
       'COMMENT:                            Average   Minimum   Maximum    Current\\c' \
       #{current.rrd_area} #{current.rrd_print} \
       --title="#{nick} on #{@channel} on #{@network}" --vertical-label="Messages Per Day" \
