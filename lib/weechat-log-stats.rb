@@ -328,6 +328,9 @@ tr a {
 td.color {
   width: 25px;
 }
+td.highest {
+  font-weight: bold;
+}
 #content p {
   text-align: justify;
 }
@@ -403,59 +406,45 @@ some manual nick change correction is performed. Only users that have spoken at 
     'AREA:messages#00FF00:Total Messages' \
     -w 800 -h 300`
 
-    html << '<p><img src="weekly-%s.png" alt="Usage by day of week"></p>' % URI.encode(@channel)
-
-
-    # General stats table 1
-
-    html << "<hr><h2>General Statistics</h2>
-<table><tr><th></th><th>Nick</th><th>Total Lines</th><th>Average Line Length</th><th>Words Per Line</th></tr>"
-
     areas, defs, = "", ""
 
     nick_list.each do |nick|
-      html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
-      html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
-      html << '<td>%s</td><td>%s</td>' % [@stats[nick].line_count.to_fs, @stats[nick].average_line_length.to_fs]
-      html << '<td>%s</td></tr>' % @stats[nick].words_per_line.to_fs
-
       areas << "%s " % @stats[nick].rrd_area
       defs  << "%s " % @stats[nick].rrd_def
     end
 
-    html << '</table>'
+    html << '<p><img src="weekly-%s.png" alt="Usage by day of week"></p>' % URI.encode(@channel)
 
 
-    # General stats table 2
+    # General stats tables
+
+    html << "<hr><h2>General Statistics</h2>"
+
+    print_table(html, nick_list,
+                :line_count => "Total Lines",
+                :average_line_length => "Average Line Length",
+                :words_per_line => "Words Per Line" )
+
+    print_table(html, nick_list,
+                :joins => "Joins",
+                :quits => "Quits",
+                :parts => "Parts",
+                :kicked => "Kicked",
+                :kicker => "Kicker",
+                :modes => "Modes")
     
-    html << '<table><tr><th></th><th>Nick</th><th>Joins</th><th>Quits</th><th>Parts</th><th>Kicked</th><th>Kicker</th><th>Modes</th></tr>'
-
-    nick_list.each do |nick|
-      html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
-      html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
-      html << '<td>%s</td><td>%s</td><td>%s</td>' % [@stats[nick].joins.to_fs, @stats[nick].quits.to_fs, @stats[nick].parts.to_fs]
-      html << '<td>%s</td><td>%s</td><td>%s</td></tr>' % [@stats[nick].kicked.to_fs, @stats[nick].kicker.to_fs, @stats[nick].modes.to_fs]
-    end
-
-    html << '</table>'
-    
-
-    # General stats table 3
-
-    html << '<table><tr><th></th><th>Nick</th><th>Emoticons</th><th>Attacks</th><th>URLs</th><th>Actions</th><th>All-Caps</th><th>Questions</th><th>Exclamations</th></tr>'
-
-    nick_list.each do |nick|
-      html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
-      html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
-      html << '<td>%s</td><td>%s</td><td>%s</td>' % [@stats[nick].emoticons.to_fs, @stats[nick].attacks.to_fs, @stats[nick].urls.to_fs]
-      html << '<td>%s</td><td>%s</td><td>%s</td>' % [@stats[nick].actions.to_fs, @stats[nick].allcaps.to_fs, @stats[nick].questions.to_fs]
-      html << '<td>%s</td></tr>' % @stats[nick].exclamations.to_fs
-    end
-
+    print_table(html, nick_list,
+                :emoticons => "Emoticons",
+                :attacks => "Slaps",
+                :urls => "URLs",
+                :actions => "Actions",
+                :allcaps => "All-Caps",
+                :questions => "Questions",
+                :exclamations => "Exclamations")
 
     # Top words table
 
-    html << '</table><hr><h2>Top %d Words</h2>' % @options[:top_word_count]
+    html << '<hr><h2>Top %d Words</h2>' % @options[:top_word_count]
 
     if @options[:top_word_length] > 1
       html << '<p class="center"><em>Only words %d characters or longer are counted.</em></p>' % @options[:top_word_length]
@@ -527,6 +516,50 @@ some manual nick change correction is performed. Only users that have spoken at 
 
     write_progress_bar "Writing Output", 1
     puts
+  end
+
+  def self.print_table(html, nicks_sorted, fields)
+    html << '<table><tr><th></th><th>Nick</th>'
+    
+    winners = {}
+
+    fields.each_pair do |field, label|
+      highest = 0
+      winner  = []
+
+      @stats.each_pair do |nick, stats|
+        val = stats.send(field)
+
+        if val > highest
+          winner = [nick]
+          highest = val
+        elsif val == highest
+          winner << nick
+        end
+      end
+
+      winners[field] = winner
+      html << '<th>%s</th>' % label
+    end
+
+    html << '</tr>'
+
+    nicks_sorted.each do |nick|
+      html << '<tr><td class="color" style="background-color: #%s;"></td>' % @stats[nick].color
+      html << '<td><a href="#%s">%s</a></td>' % [nick, nick]
+
+      fields.each_key do |field|
+        val = @stats[nick].send(field)
+
+        c = winners[field].include?(nick) ? ' class="highest"' : ''
+        
+        html << '<td%s>%s</td>' % [c, val.to_fs]
+      end
+
+      html << '</tr>'
+    end
+
+    html << '</table>'
   end
 
 
