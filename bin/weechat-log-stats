@@ -27,12 +27,12 @@ require 'optparse'
 #require 'weechat-log-stats'
 load 'lib/weechat-log-stats.rb'
 
-files, options = [], {:output_dir => "./output/",
-                      :message_threshold => 500,
-                      :top_word_length => 6,
-                      :top_word_count => 10,
+files, options = [], {:output_dir         => "./output/",
+                      :message_threshold  => 500,
+                      :top_word_length    => 6,
+                      :top_word_count     => 10,
                       :top_emoticon_count => 10,
-                      :top_domain_count => 10,
+                      :top_domain_count   => 10,
                       :nicks_file => File.expand_path("~/.weechat-log-stats.nicks")}
 
 WIDTH = `tput cols`.chomp.to_i
@@ -44,7 +44,11 @@ def write_progress_bar(label, progress)
 end
 
 OptionParser.new do |opts|
-  opts.banner = "Usage: #{__FILE__} [options]"
+  opts.banner = "Usage: #{$0} [options]"
+
+  opts.separator ""
+  opts.separator "Options:"
+  opts.separator ""
 
   opts.on("-o", "--output-dir DIR", "Output directory") do |d|
     options[:output_dir] = d
@@ -58,7 +62,7 @@ OptionParser.new do |opts|
     options[:top_emoticon_count] = i
   end
 
-  opts.on("-u", "--top-domain-count N", Integer, "Number of domain names to show in top domains.") do |i|
+  opts.on("-u", "--top-domain-count N", Integer, "Number of domain names to show in top domains") do |i|
     options[:top_domain_count] = i
   end
 
@@ -81,6 +85,7 @@ abort "No input files specified." if ARGV.empty?
 
 trap("INT")  { IRCStats.clean; exit! }
 trap("TERM") { IRCStats.clean; exit! }
+trap("KILL") { exit! }
 
 at_exit { IRCStats.clean }
 
@@ -97,7 +102,7 @@ if File.exists? options[:nicks_file]
       nick, checks = line.split(/\s*=\s*/, 2)
 
       checks.split(/\s+/).each do |check|
-          NICK_CHECKS << Check.new(nick, check, check.include?('*'))
+        NICK_CHECKS << Check.new(nick, check, check.include?('*'))
       end
     end
   end
