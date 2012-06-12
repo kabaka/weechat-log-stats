@@ -28,7 +28,7 @@ require 'optparse'
 load 'lib/weechat-log-stats.rb'
 
 files, options = [], {:output_dir         => "./output/",
-                      :message_threshold  => 500,
+                      :top_speakers_count => 25,
                       :top_word_length    => 6,
                       :top_word_count     => 10,
                       :top_emoticon_count => 10,
@@ -54,8 +54,8 @@ OptionParser.new do |opts|
     options[:output_dir] = d
   end
 
-  opts.on("-t", "--message-threshold N", Integer, "Minimum message count for inclusion in output") do |i|
-    options[:message_threshold] = i
+  opts.on("-t", "--top-speakers N", Integer, "Number of speakers to include in the user-specific output") do |i|
+    options[:top_speakers_count] = i
   end
 
   opts.on("-e", "--top-emoticon-count N", Integer, "Number of emoticons shown in the top emoticons") do |i|

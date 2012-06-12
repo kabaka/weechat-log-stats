@@ -253,7 +253,7 @@ module IRCStats
     nick.sub!(/\{.+\}/, '') unless nick[0] == '{'
     nick.sub!(/\|.+$/, '')  unless nick[0] == '|'
 
-    nick.gsub!(/[\[\]\\\|\^`\{\}-]/, '_')
+    nick.gsub!(/[\[\]\\\|\^`\{\}.-]/, '_')
 
     return nil if nick.empty? or nick[0] == '*' or nick[1] == '*'
 
@@ -295,8 +295,14 @@ module IRCStats
     emoticons  = @emoticons.sort_by  {|e, c| c * -1}.shift(@options[:top_emoticon_count])
     long_words = @long_words.sort_by {|w, c| c * -1}.shift(@options[:top_word_count])
 
-    mt = @options[:message_threshold]
-    num_deleted = @stats.length - @stats.delete_if {|n, u| u.line_count < mt}.length
+    ms = @options[:top_speakers_count]
+
+    num_deleted = @stats.length
+
+    @stats = Hash[@stats.sort_by { |n, u| u.line_count}.reverse[0..ms]]
+    @stats.delete_if {|n, u| u.line_count.zero?}
+
+    num_deleted -= @stats.length
 
 
     my_output_dir = @options[:output_dir].dup
@@ -368,8 +374,8 @@ td.highest {
 }
 </style></head><body><div id=\"content\"><h1>Channel Activity - #{@channel} on #{@network}</h1>
 <p>Nicks are changed to lower case, some characters are replaced with underscores, and
-some manual nick change correction is performed. Only users that have spoken at least
-#{mt} lines are shown. #{num_deleted.to_fs} users did not make the cut.</p>
+some manual nick change correction is performed. The top #{ms} users are shown.
+#{num_deleted.to_fs} users did not make the cut.</p>
 <p>#{@total_lines.to_fs} total lines were parsed for #{Time.at(@start_time)} to #{@last_time}.</p>"
     
 
@@ -634,12 +640,12 @@ some manual nick change correction is performed. Only users that have spoken at 
 
 
     def average_line_length
-      @line_length / @line_count
+      @line_count.zero? ? 0 : @line_length / @line_count
     end
 
 
     def words_per_line
-      @word_count / @line_count
+      @line_count.zero? ? 0 : @word_count / @line_count
     end
 
   end
