@@ -46,7 +46,7 @@ module IRCStats
 
     @options = options
 
-    @stats, @long_words, @emoticons, @domains = {}, {}, {}, {}
+    @stats, @long_words, @emoticons, @domains, @all_words = {}, {}, {}, {}, {}
 
     @network, @channel = File.basename(filename).split(/\./)[1..2]
 
@@ -79,7 +79,7 @@ module IRCStats
       end
 
       # TODO: Make this more complete.
-      if word =~ /\A(:(',)?-?.|.-?:|;.;|-.-|\.[^.]{1}\.)\Z/
+      if word =~ /\A([:;xX](',)?-?.|.-?[:;]|;.;|-.-|\.[^.]{1}\.)\Z/
         @stats[nick].emoticons += 1
 
         @emoticons[word] ||= 0
@@ -89,6 +89,9 @@ module IRCStats
       if word =~ /\As\/.+\/.*\/.*\Z/
         @stats[nick].regex += 1
       end
+
+      @all_words[word] ||= 0
+      @all_words[word]  += 1
 
       next if word.length < @options[:top_word_length]
       next if word =~ /\A[[:punct:]]/ or word =~ /[[:punct:]]\Z/
@@ -284,11 +287,6 @@ module IRCStats
 
   # TODO: Rewrite this whole thing. It is held together with duct take and bad code.
   def self.write_html
-    if @stats.empty?
-      puts "No stats to write for %s %s. Skipping output." % [@channel, @network]
-      return
-    end
-
     write_progress_bar "Writing Output", 0
 
     domains    = @domains.sort_by    {|d, c| c * -1}.shift(@options[:top_domain_count])
@@ -304,14 +302,20 @@ module IRCStats
 
     num_deleted -= @stats.length
 
+    if @stats.empty?
+      print "\nNo stats to write for #{@channel} #{@network}. Skipping output.\n"
+      return
+    end
+
+    @stats.each {|n, u| u.resolve_mentions @all_words}
 
     my_output_dir = @options[:output_dir].dup
     Dir.mkdir my_output_dir unless Dir.exists? my_output_dir
 
-    my_output_dir << "/%s/" % @network
+    my_output_dir << "/#{@network}/"
     Dir.mkdir my_output_dir unless Dir.exists? my_output_dir
 
-    my_output_dir << "%s/" % @channel
+    my_output_dir << "#{@channel}/"
 
     `rm -r '#{my_output_dir}'` if Dir.exists? my_output_dir
 
@@ -464,6 +468,7 @@ some manual nick change correction is performed. The top #{ms} users are shown.
                 :modes        => "Modes")
     
     print_table(html, nick_list,
+                :mentions     => "Mentioned",
                 :emoticons    => "Emoticons",
                 :attacks      => "Slaps",
                 :urls         => "URLs",
@@ -602,19 +607,22 @@ some manual nick change correction is performed. The top #{ms} users are shown.
 
 
   class IRCUser
-    attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area, :rrd_print
-    attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes, :periods, :commas, :regex
-    attr_accessor :questions, :exclamations, :emoticons, :attacks, :urls, :actions, :allcaps
+    attr_reader :nick, :line_count, :word_count, :color, :rrd_def, :rrd_area,
+      :rrd_print, :mentions
+
+    attr_accessor :joins, :parts, :quits, :kicked, :kicker, :modes, :periods,
+      :commas, :regex, :questions, :exclamations, :emoticons, :attacks, :urls,
+      :actions, :allcaps
 
     def initialize(nick, tmp_dir)
       @nick = nick
 
       @joins, @parts, @quits, @kicked, @kicker, @modes = 0, 0, 0, 0, 0, 0
-      @questions, @exclamations, @emoticons, @periods = 0, 0, 0, 0
+      @questions, @exclamations, @emoticons, @periods, @mentions = 0, 0, 0, 0, 0
       @commas, @attacks, @urls, @actions, @allcaps, @regex = 0, 0, 0, 0, 0, 0
 
-      @line_count, @line_length = 0, 0
-      @word_count = 0
+      @line_count, @line_length, @word_count = 0, 0, 0
+
       @rrd_def, @rrd_area, @rrd_print = rrd_def, rrd_area, rrd_print
 
       @color = Digest::MD5.hexdigest(nick)[0..5]
@@ -646,6 +654,14 @@ some manual nick change correction is performed. The top #{ms} users are shown.
 
     def words_per_line
       @line_count.zero? ? 0 : @word_count / @line_count
+    end
+
+    def resolve_mentions(all_words)
+      all_words.each do |word, count|
+        if word =~ /\A#{@nick}[[:punct:]]*\Z/i
+          @mentions += count
+        end
+      end
     end
 
   end
