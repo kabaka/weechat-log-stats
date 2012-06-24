@@ -28,3 +28,9 @@ weechat-log-stats is not yet a Gem (but will be soon!). For now, run it with
     * Support alternate time formats.
     * Maybe: support entirely different log formats.
 
+## Known Issues
+
+* Handling of "ANONYMOUS" users is really awful (I'll explain this eventually).
+* Nick mention tracking really fails hard for nicks that are all punctuation.
+* Some graphs are blank under rare circumstances (maybe an RRD problem).
+
