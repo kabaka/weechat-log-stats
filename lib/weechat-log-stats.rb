@@ -90,13 +90,14 @@ module IRCStats
         @stats[nick].regex += 1
       end
 
+      word.downcase!
+
       @all_words[word] ||= 0
       @all_words[word]  += 1
 
       next if word.length < @options[:top_word_length]
       next if word =~ /\A[[:punct:]]/ or word =~ /[[:punct:]]\Z/
       
-      word.downcase!
 
       @long_words[word] ||= 0
       @long_words[word]  += 1
@@ -287,7 +288,7 @@ module IRCStats
 
   # TODO: Rewrite this whole thing. It is held together with duct take and bad code.
   def self.write_html
-    write_progress_bar "Writing Output", 0
+    write_progress_bar "Processing Stats", 0
 
     domains    = @domains.sort_by    {|d, c| c * -1}.shift(@options[:top_domain_count])
     emoticons  = @emoticons.sort_by  {|e, c| c * -1}.shift(@options[:top_emoticon_count])
@@ -307,7 +308,11 @@ module IRCStats
       return
     end
 
-    @stats.each {|n, u| u.resolve_mentions @all_words}
+    @stats.each_with_index do |(n, u), i|
+      u.resolve_mentions @all_words
+
+      write_progress_bar "Processing Stats", i.to_f / @stats.length.to_f
+    end
 
     my_output_dir = @options[:output_dir].dup
     Dir.mkdir my_output_dir unless Dir.exists? my_output_dir
@@ -322,6 +327,10 @@ module IRCStats
     Dir.mkdir my_output_dir
 
     nick_list = @stats.keys.sort
+
+    write_progress_bar "Processing Stats", 1
+    puts
+    write_progress_bar "Writing Output", 0
 
     html = File.open("#{my_output_dir}/index.html", "w")
     html << " <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">
@@ -658,7 +667,7 @@ some manual nick change correction is performed. The top #{ms} users are shown.
 
     def resolve_mentions(all_words)
       all_words.each do |word, count|
-        if word =~ /\A#{@nick}[[:punct:]]*\Z/i
+        if word =~ /\A#{@nick.gsub(/_/, '.')}[[:punct:]]*\Z/
           @mentions += count
         end
       end
