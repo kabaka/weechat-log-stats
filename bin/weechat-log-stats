@@ -21,7 +21,7 @@
 # SOFTWARE.
 #
 
-abort "Requires Ruby 1.9" unless RUBY_VERSION.start_with? "1.9"
+abort "Requires Ruby 1.9 or greater" unless RUBY_VERSION.start_with? "1.9" or RUBY_VERSION.start_with? "2"
 
 require 'optparse'
 #require 'weechat-log-stats'
