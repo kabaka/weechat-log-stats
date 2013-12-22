@@ -28,18 +28,14 @@ module IRCStats
 
   def self.run(filename, options)
     @nick_stats, @now = {}, Time.now.to_i
-    @current_date, @start_time, @last_time = "", 0, 0
+    @current_date, @start_time, @last_time = '', 0, 0
     @tmp_dir = `mktemp -d`.chomp
 
     @total_lines = 0
 
-    @slaps = [
-      "slaps",
-      "hits",
-      "punches",
-      "attacks",
-      "stabs",
-      "shoots"
+    @slaps = %w[
+      slaps   hits   punches
+      attacks stabs  shoots
     ]
 
     @hourly, @weekly = [], []
@@ -127,13 +123,13 @@ module IRCStats
     year, month, day = $1, $2, $3
     hour, minute, second = $4.to_i, $5.to_i, $6.to_i
     nick, text = $7, $8
-    date = "%s%s%s" % [year, month, day]
+    date = '%s%s%s' % [year, month, day]
     text_arr = text.split
-    action = nick == " *"
+    action = nick == ' *'
 
     nick = text_arr.first if action
 
-    return if nick.include? ' ' or nick == "=!="
+    return if nick.include? ' ' or nick == '=!='
 
     time = Time.mktime(year, month, day)
     ts = time.to_i
@@ -142,17 +138,17 @@ module IRCStats
 
     case nick
 
-    when "<--"
+    when '<--'
       nick = correct_nick(text_arr.shift)
       return if nick == nil or nick.empty? or nick.include? '*'
 
       @stats[nick] ||= IRCUser.new(nick, @tmp_dir)
 
       case text_arr[2]
-      when "quit"
+      when 'quit'
         @stats[nick].quits += 1
 
-      when "left"
+      when 'left'
         @stats[nick].parts += 1
 
       else
@@ -167,7 +163,7 @@ module IRCStats
 
       return
 
-    when  "-->"
+    when  '-->'
       nick = correct_nick(text_arr.shift)
       return if nick == nil or nick.empty? or nick.include? '*'
 
@@ -176,8 +172,8 @@ module IRCStats
 
       return
 
-    when "--"
-      return unless text_arr.shift == "Mode"
+    when '--'
+      return unless text_arr.shift == 'Mode'
 
       nick = correct_nick(text_arr.last)
       return if nick == nil or nick.empty? or nick.include? '*'
@@ -197,7 +193,7 @@ module IRCStats
       @current_date = date
 
       if @current_date != nil and not @current_date.empty?
-        write_progress_bar "Parsing", file.pos.to_f / size.to_f
+        write_progress_bar 'Parsing', file.pos.to_f / size.to_f
 
         @nick_stats.each_pair do |my_nick, my_count|
           `rrdtool update '#{@tmp_dir}/#{my_nick}.rrd' #{ts}:#{my_count}`
@@ -238,13 +234,13 @@ module IRCStats
 
     size = File.size(filename)
 
-    File.open(filename, "r") do |file|
+    File.open(filename, 'r') do |file|
       while line = file.gets do
         parse_line file, size, line.force_encoding('ASCII-8BIT').chomp
       end
     end
 
-    write_progress_bar "Parsing", 1
+    write_progress_bar 'Parsing', 1
     puts
   end
 
@@ -264,16 +260,16 @@ module IRCStats
     NICK_CHECKS.each do |check|
       if check.glob
         if File.fnmatch(check.str, nick)
-          if check.nick == "*"
-            return "ANONYMOUS"
+          if check.nick == '*'
+            return 'ANONYMOUS'
           else
             return check.nick
           end
         end
       else
         if nick == check.str
-          if check.nick == "*"
-            return "ANONYMOUS"
+          if check.nick == '*'
+            return 'ANONYMOUS'
           else
             return check.nick
           end
@@ -288,7 +284,7 @@ module IRCStats
 
   # TODO: Rewrite this whole thing. It is held together with duct take and bad code.
   def self.write_html
-    write_progress_bar "Processing Stats", 0
+    write_progress_bar 'Processing Stats', 0
 
     domains    = @domains.sort_by    {|d, c| c * -1}.shift(@options[:top_domain_count])
     emoticons  = @emoticons.sort_by  {|e, c| c * -1}.shift(@options[:top_emoticon_count])
@@ -311,7 +307,7 @@ module IRCStats
     @stats.each_with_index do |(n, u), i|
       u.resolve_mentions @all_words
 
-      write_progress_bar "Processing Stats", i.to_f / @stats.length.to_f
+      write_progress_bar 'Processing Stats', i.to_f / @stats.length.to_f
     end
 
     my_output_dir = @options[:output_dir].dup
@@ -328,11 +324,11 @@ module IRCStats
 
     nick_list = @stats.keys.sort
 
-    write_progress_bar "Processing Stats", 1
+    write_progress_bar 'Processing Stats', 1
     puts
-    write_progress_bar "Writing Output", 0
+    write_progress_bar 'Writing Output', 0
 
-    html = File.open("#{my_output_dir}/index.html", "w")
+    html = File.open "#{my_output_dir}/index.html", 'w'
     html << " <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">
 <html><head><title>#{@channel} on #{@network}</title><meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\" ><style type=\"text/css\">
 body {
@@ -394,7 +390,7 @@ some manual nick change correction is performed. The top #{ms} users are shown.
 
     # Hourly graph
 
-    html << '<hr><h2>Activity by Hour</h2><p class="center"><em>Time Zone: UTC%s</em></p>' % Time.now.strftime("%z")
+    html << '<hr><h2>Activity by Hour</h2><p class="center"><em>Time Zone: UTC%s</em></p>' % Time.now.strftime('%z')
 
     hourly_start = Time.mktime(2000, 1, 1, 0, 0, 0).to_i
 
@@ -449,11 +445,11 @@ some manual nick change correction is performed. The top #{ms} users are shown.
     'AREA:messages#00FF00:Total Messages' \
     -w 800 -h 300`
 
-    areas, defs, = "", ""
+    areas, defs, = '', ''
 
     nick_list.each do |nick|
-      areas << "%s " % @stats[nick].rrd_area
-      defs  << "%s " % @stats[nick].rrd_def
+      areas << '%s ' % @stats[nick].rrd_area
+      defs  << '%s ' % @stats[nick].rrd_def
     end
 
     html << '<p><img src="weekly-%s.png" alt="Usage by day of week"></p>' % URI.encode(@channel)
@@ -464,32 +460,32 @@ some manual nick change correction is performed. The top #{ms} users are shown.
     html << "<hr><h2>General Statistics</h2>"
 
     print_table(html, nick_list,
-                :line_count           => "Total Lines",
-                :average_line_length  => "Average Line Length",
-                :words_per_line       => "Words Per Line" )
+                :line_count           => 'Total Lines',
+                :average_line_length  => 'Average Line Length',
+                :words_per_line       => 'Words Per Line' )
 
     print_table(html, nick_list,
-                :joins        => "Joins",
-                :quits        => "Quits",
-                :parts        => "Parts",
-                :kicked       => "Kicked",
-                :kicker       => "Kicker",
-                :modes        => "Modes")
+                :joins        => 'Joins',
+                :quits        => 'Quits',
+                :parts        => 'Parts',
+                :kicked       => 'Kicked',
+                :kicker       => 'Kicker',
+                :modes        => 'Modes')
     
     print_table(html, nick_list,
-                :mentions     => "Mentioned",
-                :emoticons    => "Emoticons",
-                :attacks      => "Slaps",
-                :urls         => "URLs",
-                :regex        => "Regexes",
-                :actions      => "Actions")
+                :mentions     => 'Mentioned',
+                :emoticons    => 'Emoticons',
+                :attacks      => 'Slaps',
+                :urls         => 'URLs',
+                :regex        => 'Regexes',
+                :actions      => 'Actions')
 
     print_table(html, nick_list,
-                :allcaps      => "All-Caps",
-                :periods      => "Periods",
-                :commas       => "Commas",
-                :questions    => "Question Marks",
-                :exclamations => "Exclamation Marks")
+                :allcaps      => 'All-Caps',
+                :periods      => 'Periods',
+                :commas       => 'Commas',
+                :questions    => 'Question Marks',
+                :exclamations => 'Exclamation Marks')
 
     # Top words table
 
@@ -528,9 +524,13 @@ some manual nick change correction is performed. The top #{ms} users are shown.
     # rrdtool shits a brick (rather than a graph) when we feed it too much, 
     # so write it to a file and pipe it in
     
-    temp = "%s/%s" % [@tmp_dir, "temp"]
+    temp = '%s/%s' % [@tmp_dir, "temp"]
 
-    File.open(temp, 'w') {|f| f.write("graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e #{@last_time.to_i} -g #{defs} #{areas} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -l 0 -w 800 -h 300")}
+    File.open temp, 'w'  do |f|
+      f.write(
+        "graph '#{my_output_dir}/#{@channel}.png' -a PNG -s #{@start_time} -e #{@last_time.to_i} -g #{defs} #{areas} --title='#{@channel} on #{@network}' --vertical-label='Messages Per Day' -l 0 -w 800 -h 300"
+      )
+    end
 
     `cat #{temp} | rrdtool -`
 
@@ -563,7 +563,7 @@ some manual nick change correction is performed. The top #{ms} users are shown.
 
     html.close
 
-    write_progress_bar "Writing Output", 1
+    write_progress_bar 'Writing Output', 1
     puts
   end
 
@@ -685,3 +685,4 @@ class Numeric
   end
 
 end
+
